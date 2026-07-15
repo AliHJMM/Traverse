@@ -1,0 +1,28 @@
+# Editor / tooling
+.claude/settings.local.json
+.vscode/
+.idea/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+build/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
