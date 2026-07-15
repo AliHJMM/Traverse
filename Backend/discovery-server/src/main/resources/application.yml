@@ -1,0 +1,24 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: discovery-server
+
+eureka:
+  client:
+    # This IS the registry -- it doesn't need to register with itself or
+    # fetch a registry from anywhere else.
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    # Standalone dev/single-instance setup; the self-preservation heuristic
+    # is meant for multi-node Eureka clusters and just delays noticing a
+    # dead service instance here.
+    enable-self-preservation: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

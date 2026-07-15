@@ -29,7 +29,8 @@ built last, once every backend service is done.
 
 | Service | Responsibility | Database |
 |---|---|---|
-| **API Gateway** | Single entry point, request routing, auth-token verification, rate limiting (Spring Cloud Gateway) | — |
+| **Discovery Server** | Eureka registry — every service registers itself here; the Gateway resolves and load-balances across replicas through it instead of fixed URIs | — |
+| **API Gateway** | Single entry point, request routing via Eureka (`lb://service-name`), auth-token verification, rate limiting (Spring Cloud Gateway) | — |
 | **Auth Service** | Login/signup, JWT/OAuth2 issuance, role-based access control (admin vs user) | PostgreSQL |
 | **User Service** | User CRUD, profile data | PostgreSQL |
 | **Travel Service** | Itinerary CRUD: destinations, dates, duration, activities, accommodation, transportation. Uses Neo4j to model relationships between destinations/routes/activities (e.g. "connected to", "bookable with") for recommendations and route lookups | PostgreSQL + Neo4j |
@@ -39,8 +40,12 @@ built last, once every backend service is done.
 Each service:
 - Owns its own data (no shared tables across services).
 - Is independently deployable, containerized, and run with ≥2 replicas behind
-  the gateway for load balancing/failover.
+  the gateway for load balancing/failover (`docker compose up --scale
+  <service>=N`) — the Gateway discovers and round-robins across all of them
+  via Eureka, not a hardcoded host:port.
 - Exposes health-check endpoints so failures don't cascade.
+- Registers with the Discovery Server (Eureka) except the Discovery Server
+  and Gateway themselves.
 
 ### Why Neo4j here
 PostgreSQL handles the transactional entities (users, bookings, payments).
@@ -77,11 +82,10 @@ PR(s) before the next starts.
   - Verified: both containers reach `healthy` and accept queries.
 
 - [x] **Phase 2 — API Gateway**
-  - Spring Boot + Spring Cloud Gateway. Static routes to the 4 downstream
-    services (env-configurable URIs). JWT verification filter reads the
-    token from an httpOnly cookie (falls back to `Authorization: Bearer`
-    for non-browser clients).
-  - Uses static routes, not service discovery — see the Eureka note below.
+  - Spring Boot + Spring Cloud Gateway. Routes to the 4 downstream services
+    via Eureka (`lb://service-name`, see Phase 3.5). JWT verification filter
+    reads the token from an httpOnly cookie (falls back to `Authorization:
+    Bearer` for non-browser clients).
   - Verified: ran the built jar, exercised it with curl (401 on missing/bad
     token, correctly routed-through on valid token/public paths).
 
@@ -101,12 +105,27 @@ PR(s) before the next starts.
     (container-to-container, not localhost) — register/login/me all work
     end to end with the real httpOnly cookie.
 
-  **Follow-up before Phase 4:** the Gateway currently uses static routes,
-  which doesn't support the "multiple replicas per service with load
-  balancing/failover" requirement. Add a Eureka discovery server so the
-  Gateway can dynamically find and load-balance across replicas, before
-  more services are added (retrofitting later means touching every
-  service's routing again).
+- [x] **Phase 3.5 — Eureka Discovery Server**
+  - New `discovery-server` module (Spring Boot + Netflix Eureka Server,
+    standalone/single-node, port 8761). Gateway and Auth Service converted
+    from static routes to Eureka clients; Gateway routes now use
+    `lb://<service-name>` (Spring Cloud LoadBalancer resolves + round-robins
+    across whatever replicas are currently registered).
+  - Verified for real, not just config: ran
+    `docker compose up --scale auth-service=2`, confirmed both replicas
+    registered in Eureka independently, confirmed the Gateway actually
+    distributed requests across both (each initialized its request pipeline
+    at a different point in the request sequence, not just one). Then
+    killed one replica (`docker stop`) and confirmed the Gateway recovered
+    to 100% success against the survivor within ~12s with no manual
+    reconfiguration — real failover, not just "the config supports it."
+  - Eureka client disabled in all test profiles (`eureka.client.enabled:
+    false`) so test runs don't depend on network/timing.
+  - Trade-off: default Eureka failover has a detection window (renewal
+    interval, then eviction) — a killed instance can produce a handful of
+    failed/slow requests for several seconds before the Gateway's local
+    registry cache catches up. Acceptable for this phase; tunable later
+    (`lease-renewal-interval`, retry filters) if needed.
 
 - [ ] **Phase 4 — User Service**
   - Spring Boot + Spring Data JPA. Admin CRUD on users, cascading deletes
@@ -174,8 +193,9 @@ PR(s) before the next starts.
 ```
 Traverse/
 ├── Backend/
-│   ├── gateway/          (Spring Boot + Spring Cloud Gateway)
-│   ├── auth-service/     (Spring Boot + Spring Security)
+│   ├── discovery-server/ (Spring Boot + Netflix Eureka Server)
+│   ├── gateway/          (Spring Boot + Spring Cloud Gateway + Eureka client)
+│   ├── auth-service/     (Spring Boot + Spring Security + Eureka client)
 │   ├── user-service/     (Spring Boot + Spring Data JPA)
 │   ├── travel-service/   (Spring Boot + Spring Data JPA + Spring Data Neo4j)
 │   └── payment-service/  (Spring Boot + Spring Data JPA)
@@ -213,9 +233,8 @@ Traverse/
 
 ## Next Step
 
-Phases 0-3 are done (git workflow, infra skeleton, API Gateway, Auth
-Service). On `feature/auth-service`, pending user add/commit/push + PR.
+Phases 0-3.5 are done (git workflow, infra skeleton, API Gateway, Auth
+Service, Eureka discovery + verified load balancing/failover). On
+`feature/eureka-discovery`, pending user add/commit/push + PR.
 
-Decision needed: add a Eureka discovery server now (own branch, before
-Phase 4) so the Gateway can load-balance across service replicas, or defer
-it and keep static routes for now.
+Next: Phase 4 — User Service.

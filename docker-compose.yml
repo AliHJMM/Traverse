@@ -39,6 +39,21 @@ services:
       timeout: 5s
       retries: 5
 
+  discovery-server:
+    build:
+      context: ./Backend/discovery-server
+    container_name: traverse-discovery-server
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    networks:
+      - traverse-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:8761/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   gateway:
     build:
       context: ./Backend/gateway
@@ -47,21 +62,22 @@ services:
     environment:
       JWT_SECRET: ${JWT_SECRET}
       COOKIE_NAME: ${COOKIE_NAME}
-      AUTH_SERVICE_URI: http://auth-service:8081
-      USER_SERVICE_URI: http://user-service:8082
-      TRAVEL_SERVICE_URI: http://travel-service:8083
-      PAYMENT_SERVICE_URI: http://payment-service:8084
+      EUREKA_URI: http://discovery-server:8761/eureka
     ports:
       - "8080:8080"
     networks:
       - traverse-net
     depends_on:
-      - auth-service
+      discovery-server:
+        condition: service_healthy
 
+  # No container_name / host port mapping here on purpose -- this service is
+  # meant to be run with multiple replicas, e.g.
+  # `docker compose up -d --scale auth-service=3`, and the Gateway reaches
+  # all of them (load-balanced) through Eureka, not a fixed host:port.
   auth-service:
     build:
       context: ./Backend/auth-service
-    container_name: traverse-auth-service
     restart: unless-stopped
     environment:
       POSTGRES_HOST: postgres
@@ -73,12 +89,13 @@ services:
       JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES}
       COOKIE_NAME: ${COOKIE_NAME}
       COOKIE_SECURE: ${COOKIE_SECURE}
-    ports:
-      - "8081:8081"
+      EUREKA_URI: http://discovery-server:8761/eureka
     networks:
       - traverse-net
     depends_on:
       postgres:
+        condition: service_healthy
+      discovery-server:
         condition: service_healthy
 
   # user-service, travel-service, payment-service, and Frontend/ are added
