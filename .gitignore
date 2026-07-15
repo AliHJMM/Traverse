@@ -20,6 +20,11 @@ __pycache__/
 .venv/
 venv/
 
+# Java / Maven
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
+
 # Docker
 *.log
 
