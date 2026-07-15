@@ -1,7 +1,6 @@
-package com.traverse.auth.security;
+package com.traverse.user.security;
 
-import com.traverse.auth.entity.Role;
-import com.traverse.auth.service.JwtService;
+import com.traverse.user.entity.Role;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -44,21 +43,12 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
                         principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + principal.role())));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (JwtException | IllegalArgumentException e) {
-                // Invalid/expired token: leave the request unauthenticated and let
-                // the endpoint's own authorization rule (permitAll vs authenticated)
-                // decide what happens next, rather than failing the filter chain here.
                 SecurityContextHolder.clearContext();
             }
         });
         filterChain.doFilter(request, response);
     }
 
-    /**
-     * Browser requests carry the token in the httpOnly cookie. Other
-     * services calling this service internally (e.g. User Service keeping
-     * credentials in sync) forward it as a plain Bearer header instead,
-     * since they don't have a cookie jar for the original caller.
-     */
     private Optional<String> extractToken(HttpServletRequest request) {
         if (request.getCookies() != null) {
             Optional<String> fromCookie = Arrays.stream(request.getCookies())
