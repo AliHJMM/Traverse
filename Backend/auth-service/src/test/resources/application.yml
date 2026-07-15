@@ -11,6 +11,10 @@ spring:
   flyway:
     enabled: false
 
+eureka:
+  client:
+    enabled: false
+
 jwt:
   secret: test-secret-key-please-be-at-least-32-bytes-long
   expiration-minutes: 60
