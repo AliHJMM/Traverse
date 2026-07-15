@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -30,9 +31,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     );
 
     private final SecretKey signingKey;
+    private final String cookieName;
 
-    public JwtAuthenticationFilter(@Value("${jwt.secret}") String secret) {
+    public JwtAuthenticationFilter(@Value("${jwt.secret}") String secret,
+                                    @Value("${app.cookie.name}") String cookieName) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.cookieName = cookieName;
     }
 
     @Override
@@ -44,12 +48,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        String header = request.getHeaders().getFirst("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) {
-            return reject(exchange, "Missing bearer token");
+        String token = extractToken(request);
+        if (token == null) {
+            return reject(exchange, "Missing auth token");
         }
-
-        String token = header.substring("Bearer ".length());
 
         try {
             Claims claims = Jwts.parser()
@@ -69,6 +71,26 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         } catch (JwtException | IllegalArgumentException e) {
             return reject(exchange, "Invalid token");
         }
+    }
+
+    /**
+     * The JWT is normally carried in an httpOnly cookie (set by the Auth
+     * Service) so browser-side JS can never read it, which is the point of
+     * using a cookie instead of localStorage. The Authorization header is
+     * kept as a fallback for non-browser clients (curl/Postman/service calls).
+     */
+    private String extractToken(ServerHttpRequest request) {
+        HttpCookie cookie = request.getCookies().getFirst(cookieName);
+        if (cookie != null) {
+            return cookie.getValue();
+        }
+
+        String header = request.getHeaders().getFirst("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring("Bearer ".length());
+        }
+
+        return null;
     }
 
     private Mono<Void> reject(ServerWebExchange exchange, String message) {
