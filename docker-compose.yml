@@ -39,9 +39,50 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend/ and Frontend/ services are added once their Dockerfiles exist
-  # (Backend: Phase 2+ microservices, Frontend: Phase 7 Admin Dashboard).
-  # Each will run in its own container on this same network.
+  gateway:
+    build:
+      context: ./Backend/gateway
+    container_name: traverse-gateway
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_NAME: ${COOKIE_NAME}
+      AUTH_SERVICE_URI: http://auth-service:8081
+      USER_SERVICE_URI: http://user-service:8082
+      TRAVEL_SERVICE_URI: http://travel-service:8083
+      PAYMENT_SERVICE_URI: http://payment-service:8084
+    ports:
+      - "8080:8080"
+    networks:
+      - traverse-net
+    depends_on:
+      - auth-service
+
+  auth-service:
+    build:
+      context: ./Backend/auth-service
+    container_name: traverse-auth-service
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MINUTES: ${JWT_EXPIRATION_MINUTES}
+      COOKIE_NAME: ${COOKIE_NAME}
+      COOKIE_SECURE: ${COOKIE_SECURE}
+    ports:
+      - "8081:8081"
+    networks:
+      - traverse-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # user-service, travel-service, payment-service, and Frontend/ are added
+  # once their Dockerfiles exist (Phases 4-7 of Plan.md).
 
 networks:
   traverse-net:

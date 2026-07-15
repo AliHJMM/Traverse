@@ -4,6 +4,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -24,8 +25,9 @@ import static org.mockito.Mockito.when;
 class JwtAuthenticationFilterTest {
 
     private static final String SECRET = "test-secret-key-please-be-at-least-32-bytes-long";
+    private static final String COOKIE_NAME = "access_token";
 
-    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+    private final JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET, COOKIE_NAME);
 
     @Test
     void allowsPublicPathsWithoutToken() {
@@ -52,12 +54,45 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void allowsRequestsWithValidToken() {
+    void allowsRequestsWithValidBearerHeader() {
         String token = validToken(SECRET, System.currentTimeMillis() + 60_000);
 
         ServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/users/1")
                         .header("Authorization", "Bearer " + token)
+                        .build());
+        GatewayFilterChain chain = mock(GatewayFilterChain.class);
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        filter.filter(exchange, chain).block();
+
+        verify(chain).filter(any());
+    }
+
+    @Test
+    void allowsRequestsWithValidCookie() {
+        String token = validToken(SECRET, System.currentTimeMillis() + 60_000);
+
+        ServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users/1")
+                        .cookie(new HttpCookie(COOKIE_NAME, token))
+                        .build());
+        GatewayFilterChain chain = mock(GatewayFilterChain.class);
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        filter.filter(exchange, chain).block();
+
+        verify(chain).filter(any());
+    }
+
+    @Test
+    void cookieTakesPrecedenceOverHeaderWhenBothPresent() {
+        String validCookieToken = validToken(SECRET, System.currentTimeMillis() + 60_000);
+
+        ServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users/1")
+                        .cookie(new HttpCookie(COOKIE_NAME, validCookieToken))
+                        .header("Authorization", "Bearer garbage-not-a-jwt")
                         .build());
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());

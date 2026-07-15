@@ -76,13 +76,37 @@ PR(s) before the next starts.
   - Volumes for persistence, `.env`-based config.
   - Verified: both containers reach `healthy` and accept queries.
 
-- [ ] **Phase 2 — API Gateway** *(in progress)*
-  - Spring Boot + Spring Cloud Gateway, routing to downstream services,
-    JWT verification filter.
+- [x] **Phase 2 — API Gateway**
+  - Spring Boot + Spring Cloud Gateway. Static routes to the 4 downstream
+    services (env-configurable URIs). JWT verification filter reads the
+    token from an httpOnly cookie (falls back to `Authorization: Bearer`
+    for non-browser clients).
+  - Uses static routes, not service discovery — see the Eureka note below.
+  - Verified: ran the built jar, exercised it with curl (401 on missing/bad
+    token, correctly routed-through on valid token/public paths).
 
-- [ ] **Phase 3 — Auth Service**
-  - Spring Boot + Spring Security. Signup/login, JWT issuance (+ OAuth2 if
-    time permits), password hashing, role claims (admin/user).
+- [x] **Phase 3 — Auth Service**
+  - Spring Boot + Spring Security + Spring Data JPA + Flyway. Register
+    (first-ever account bootstraps as ADMIN; public registrations can't
+    self-assign ADMIN afterwards), login, logout, `/me`.
+  - JWT is set as an **httpOnly, Secure(prod)/SameSite=Strict cookie** —
+    never returned in the JSON body and never readable by JS, to prevent
+    XSS token theft. CSRF is mitigated by `SameSite=Strict` since the API
+    is stateless (no CSRF token needed).
+  - BCrypt password hashing. `users` table lives in its own `auth` Postgres
+    schema, managed by Flyway migrations (not `hibernate.ddl-auto`).
+  - Verified: 8 automated tests (JWT roundtrip/expiry + full MockMvc
+    integration flow), then a real run against Postgres in Docker, then the
+    full chain through the Gateway via `docker compose up --build`
+    (container-to-container, not localhost) — register/login/me all work
+    end to end with the real httpOnly cookie.
+
+  **Follow-up before Phase 4:** the Gateway currently uses static routes,
+  which doesn't support the "multiple replicas per service with load
+  balancing/failover" requirement. Add a Eureka discovery server so the
+  Gateway can dynamically find and load-balance across replicas, before
+  more services are added (retrofitting later means touching every
+  service's routing again).
 
 - [ ] **Phase 4 — User Service**
   - Spring Boot + Spring Data JPA. Admin CRUD on users, cascading deletes
@@ -189,5 +213,9 @@ Traverse/
 
 ## Next Step
 
-Phases 0 and 1 are done. Now on `feature/api-gateway`, building Phase 2 (API
-Gateway) with Spring Boot + Spring Cloud Gateway.
+Phases 0-3 are done (git workflow, infra skeleton, API Gateway, Auth
+Service). On `feature/auth-service`, pending user add/commit/push + PR.
+
+Decision needed: add a Eureka discovery server now (own branch, before
+Phase 4) so the Gateway can load-balance across service replicas, or defer
+it and keep static routes for now.

@@ -27,6 +27,10 @@ spring:
 jwt:
   secret: ${JWT_SECRET:dev-only-secret-change-me-please-must-be-at-least-32-bytes}
 
+app:
+  cookie:
+    name: ${COOKIE_NAME:access_token}
+
 management:
   endpoints:
     web:
