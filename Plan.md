@@ -4,20 +4,37 @@ Phase 1 scope: infrastructure, automation, and the Admin Dashboard. The full
 Travel Management System (customer-facing app) is a later phase — this repo
 lays the foundation it will run on.
 
+Backend services are built first, one by one; the Admin Dashboard frontend is
+built last, once every backend service is done.
+
 ---
 
-## 1. Architecture Overview
+## 1. Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Backend services | Java + Spring Boot (Spring Cloud Gateway, Spring Security + JWT, Spring Data JPA, Spring Data Neo4j) |
+| Frontend (Admin Dashboard) | Angular — conventional pairing with Spring Boot, built-in HTTP client/forms/router/DI fit a CRUD-heavy admin UI without assembling extra libraries |
+| Relational DB | PostgreSQL |
+| Graph DB | Neo4j |
+| CI/CD | Jenkins + SonarQube |
+| Containers/Provisioning | Docker, Ansible |
+| Logging | ELK or Loki (TBD in Phase 10) |
+
+---
+
+## 2. Architecture Overview
 
 ### Microservices (bounded by business domain)
 
 | Service | Responsibility | Database |
 |---|---|---|
-| **API Gateway** | Single entry point, request routing, auth-token verification, rate limiting | — |
+| **API Gateway** | Single entry point, request routing, auth-token verification, rate limiting (Spring Cloud Gateway) | — |
 | **Auth Service** | Login/signup, JWT/OAuth2 issuance, role-based access control (admin vs user) | PostgreSQL |
 | **User Service** | User CRUD, profile data | PostgreSQL |
 | **Travel Service** | Itinerary CRUD: destinations, dates, duration, activities, accommodation, transportation. Uses Neo4j to model relationships between destinations/routes/activities (e.g. "connected to", "bookable with") for recommendations and route lookups | PostgreSQL + Neo4j |
 | **Payment Service** | Payment method CRUD, Stripe & PayPal integration | PostgreSQL |
-| **Admin Dashboard** | Frontend SPA consuming the above via the Gateway | — |
+| **Admin Dashboard** | Angular SPA consuming the above via the Gateway (built last) | — |
 
 Each service:
 - Owns its own data (no shared tables across services).
@@ -39,42 +56,47 @@ can be traced across services in the centralized logging stack.
 
 ---
 
-## 2. Build Order
+## 3. Build Order
 
 We build incrementally, one phase at a time, each phase merged via its own
 PR(s) before the next starts.
 
-- [ ] **Phase 0 — Git workflow & repo hygiene**
-  - Branch protection on `main`: PRs required, ≥1 approval, status checks
-    must pass, no direct pushes, no force-push.
+- [x] **Phase 0 — Git workflow & repo hygiene**
+  - Branch protection ruleset on `main`: PR required before merging, status
+    checks slot reserved for Jenkins (Phase 8), no direct pushes, no
+    force-push, no deletions.
+  - Required approvals set to 0 — GitHub blocks PR authors from approving
+    their own PRs, and this is a solo project with no second reviewer.
+    Status checks become the real validation gate once Jenkins exists.
   - Branch naming convention (`feature/...`, `fix/...`, `chore/...`).
-  - PR template, CONTRIBUTING.md, commit message convention.
-  - Initial repo scaffold (monorepo layout below) + first commit.
+  - Initial repo scaffold + first commit.
 
-- [ ] **Phase 1 — Infra skeleton**
+- [x] **Phase 1 — Infra skeleton**
   - `docker-compose.yml` for PostgreSQL + Neo4j, isolated Docker network.
-  - Volumes for persistence, `.env`-based config, seed/init scripts.
+  - Volumes for persistence, `.env`-based config.
+  - Verified: both containers reach `healthy` and accept queries.
 
-- [ ] **Phase 2 — API Gateway**
-  - Routing to downstream services, JWT verification middleware.
+- [ ] **Phase 2 — API Gateway** *(in progress)*
+  - Spring Boot + Spring Cloud Gateway, routing to downstream services,
+    JWT verification filter.
 
 - [ ] **Phase 3 — Auth Service**
-  - Signup/login, JWT issuance (+ OAuth2 if time permits), password hashing,
-    role claims (admin/user).
+  - Spring Boot + Spring Security. Signup/login, JWT issuance (+ OAuth2 if
+    time permits), password hashing, role claims (admin/user).
 
 - [ ] **Phase 4 — User Service**
-  - Admin CRUD on users, cascading deletes (e.g. removing a user cleans up
-    their bookings/payment methods).
+  - Spring Boot + Spring Data JPA. Admin CRUD on users, cascading deletes
+    (e.g. removing a user cleans up their bookings/payment methods).
 
 - [ ] **Phase 5 — Travel Service**
-  - Postgres schema for itineraries; Neo4j graph for destination/route
-    relationships; admin CRUD.
+  - Spring Boot + Spring Data JPA (Postgres) + Spring Data Neo4j. Itinerary
+    CRUD; Neo4j graph for destination/route relationships.
 
 - [ ] **Phase 6 — Payment Service**
-  - Payment method CRUD, Stripe integration, PayPal integration (sandbox
-    keys via secrets, never hardcoded).
+  - Spring Boot + Spring Data JPA. Payment method CRUD, Stripe integration,
+    PayPal integration (sandbox keys via secrets, never hardcoded).
 
-- [ ] **Phase 7 — Admin Dashboard (frontend)**
+- [ ] **Phase 7 — Admin Dashboard (Angular, built last)**
   - Responsive UI (Chrome + Firefox), JWT-authenticated, CRUD screens for
     users/travels/payments, tested against the live services.
 
@@ -109,33 +131,31 @@ PR(s) before the next starts.
 
 ---
 
-## 3. Git Workflow (mandatory PRs)
+## 4. Git Workflow (mandatory PRs)
 
-- `main` is protected: no direct commits/pushes; merges only via approved PR
-  with passing CI (Jenkins + SonarQube gate).
+- `main` is protected via a GitHub ruleset: no direct commits/pushes, no
+  force-push, no deletions; merges only via PR.
+- Required approvals = 0 (GitHub blocks self-approval and this is a solo
+  project); once Jenkins exists (Phase 8), "require status checks to pass"
+  becomes the real merge gate.
 - One feature/fix/chore per branch, one branch per PR:
   `feature/<short-desc>`, `fix/<short-desc>`, `chore/<short-desc>`.
-- PR description explains *why*, links the relevant plan phase/task.
-- At least one review approval required before merge; reviewer checks
-  correctness, test coverage, and the SonarQube report.
-- Squash or rebase merge (no merge commits cluttering history) — TBD, confirm
-  preference when repo is scaffolded.
+- Squash merge only (linear history required) — every PR becomes exactly one
+  commit on `main`.
 
 ---
 
-## 4. Repo Layout (proposed)
+## 5. Repo Layout (proposed)
 
 ```
 Traverse/
-├── services/
-│   ├── gateway/
-│   ├── auth-service/
-│   ├── user-service/
-│   ├── travel-service/
-│   └── payment-service/
-├── admin-dashboard/
-├── docker/
-│   └── docker-compose.yml
+├── Backend/
+│   ├── gateway/          (Spring Boot + Spring Cloud Gateway)
+│   ├── auth-service/     (Spring Boot + Spring Security)
+│   ├── user-service/     (Spring Boot + Spring Data JPA)
+│   ├── travel-service/   (Spring Boot + Spring Data JPA + Spring Data Neo4j)
+│   └── payment-service/  (Spring Boot + Spring Data JPA)
+├── Frontend/              (Angular Admin Dashboard — built last)
 ├── ansible/
 │   └── playbooks/
 ├── jenkins/
@@ -143,12 +163,13 @@ Traverse/
 ├── docs/
 │   ├── architecture.md
 │   └── db-schema.md
+├── docker-compose.yml
 └── Plan.md
 ```
 
 ---
 
-## 5. Constraints Checklist (from requirements)
+## 6. Constraints Checklist (from requirements)
 
 - [ ] PostgreSQL + Neo4j, both containerized
 - [ ] Jenkins CI/CD, SonarQube quality gate
@@ -168,4 +189,5 @@ Traverse/
 
 ## Next Step
 
-Set up Phase 0 (branch protection + repo scaffold), then proceed to Phase 1.
+Phases 0 and 1 are done. Now on `feature/api-gateway`, building Phase 2 (API
+Gateway) with Spring Boot + Spring Cloud Gateway.
