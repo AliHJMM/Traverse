@@ -2,10 +2,12 @@ package com.traverse.auth.service;
 
 import com.traverse.auth.dto.RegisterRequest;
 import com.traverse.auth.dto.LoginRequest;
+import com.traverse.auth.dto.UpdateCredentialsRequest;
 import com.traverse.auth.entity.Role;
 import com.traverse.auth.entity.User;
 import com.traverse.auth.exception.EmailAlreadyExistsException;
 import com.traverse.auth.exception.InvalidCredentialsException;
+import com.traverse.auth.exception.UserNotFoundException;
 import com.traverse.auth.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -58,5 +60,30 @@ public class AuthService {
             throw new InvalidCredentialsException();
         }
         return user;
+    }
+
+    public User updateCredentials(Long id, UpdateCredentialsRequest request) {
+        User user = userRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id));
+
+        if (request.email() != null && !request.email().equals(user.getEmail())) {
+            if (userRepository.existsByEmail(request.email())) {
+                throw new EmailAlreadyExistsException(request.email());
+            }
+            user.setEmail(request.email());
+        }
+        if (request.role() != null) {
+            user.setRole(request.role());
+        }
+        if (request.enabled() != null) {
+            user.setEnabled(request.enabled());
+        }
+        return userRepository.save(user);
+    }
+
+    public void deleteById(Long id) {
+        if (!userRepository.existsById(id)) {
+            throw new UserNotFoundException(id);
+        }
+        userRepository.deleteById(id);
     }
 }

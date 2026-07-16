@@ -127,9 +127,38 @@ PR(s) before the next starts.
     registry cache catches up. Acceptable for this phase; tunable later
     (`lease-renewal-interval`, retry filters) if needed.
 
-- [ ] **Phase 4 — User Service**
-  - Spring Boot + Spring Data JPA. Admin CRUD on users, cascading deletes
-    (e.g. removing a user cleans up their bookings/payment methods).
+- [x] **Phase 4 — User Service**
+  - Spring Boot + Spring Data JPA + Flyway + OpenFeign + Eureka client.
+    ADMIN-only CRUD on users (`/api/users`), own `users.user_profiles`
+    Postgres schema/table (full name, phone, address, plus a denormalized
+    copy of email/role for reads with no cross-service call).
+  - Doesn't own credentials -- Auth Service still does. Create/update/delete
+    call Auth Service via a Feign client (`lb://auth-service`, load-balanced
+    through Eureka), forwarding the calling admin's own JWT as a Bearer
+    header (`FeignAuthForwardingConfig`) so Auth Service's own
+    role-escalation rules apply to the real caller, not to User Service.
+  - Added matching ADMIN-only `PATCH /api/auth/users/{id}` and
+    `DELETE /api/auth/users/{id}` to Auth Service for this; its
+    `JwtCookieAuthenticationFilter` now also accepts a Bearer header (not
+    just the cookie) for this kind of service-to-service call.
+  - **Cascading delete**: deleting a user removes the local profile *and*
+    calls Auth Service to remove the credential — verified for real (see
+    below), not just implemented. Cascading into travels/payments will
+    extend this once those services exist (Phases 5-6).
+  - Bug caught during live verification: Feign's default HTTP client (JDK
+    `HttpURLConnection`) silently can't send `PATCH` at all — the update
+    call failed with no request ever reaching Auth Service. Fixed by
+    switching Feign to Apache HttpClient5 (`feign-hc5` +
+    `spring.cloud.openfeign.httpclient.hc5.enabled`). Direct-service curl
+    testing (bypassing User Service) is what isolated this to the client,
+    not Auth Service.
+  - Verified for real: 5 automated tests (MockMvc + mocked Feign client),
+    then full `docker compose up --build` across postgres,
+    discovery-server, auth-service, user-service, gateway — logged in as
+    the bootstrap admin, created a user, escalated another to ADMIN
+    (proving JWT forwarding), listed, updated (email+role, confirmed the
+    renamed login works), then deleted and confirmed *both* the profile
+    (404) and the credential (login now fails) were gone.
 
 - [ ] **Phase 5 — Travel Service**
   - Spring Boot + Spring Data JPA (Postgres) + Spring Data Neo4j. Itinerary
@@ -196,7 +225,7 @@ Traverse/
 │   ├── discovery-server/ (Spring Boot + Netflix Eureka Server)
 │   ├── gateway/          (Spring Boot + Spring Cloud Gateway + Eureka client)
 │   ├── auth-service/     (Spring Boot + Spring Security + Eureka client)
-│   ├── user-service/     (Spring Boot + Spring Data JPA)
+│   ├── user-service/     (Spring Boot + Spring Data JPA + OpenFeign + Eureka client)
 │   ├── travel-service/   (Spring Boot + Spring Data JPA + Spring Data Neo4j)
 │   └── payment-service/  (Spring Boot + Spring Data JPA)
 ├── Frontend/              (Angular Admin Dashboard — built last)
@@ -233,8 +262,9 @@ Traverse/
 
 ## Next Step
 
-Phases 0-3.5 are done (git workflow, infra skeleton, API Gateway, Auth
-Service, Eureka discovery + verified load balancing/failover). On
-`feature/eureka-discovery`, pending user add/commit/push + PR.
+Phases 0-4 are done (git workflow, infra skeleton, API Gateway, Auth
+Service, Eureka discovery, User Service). On `feature/user-service`,
+pending user add/commit/push + PR.
 
-Next: Phase 4 — User Service.
+Next: Phase 5 — Travel Service (first service touching both PostgreSQL and
+Neo4j).

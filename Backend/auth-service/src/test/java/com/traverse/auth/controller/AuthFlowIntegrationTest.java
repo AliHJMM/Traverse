@@ -3,6 +3,7 @@ package com.traverse.auth.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.traverse.auth.dto.LoginRequest;
 import com.traverse.auth.dto.RegisterRequest;
+import com.traverse.auth.dto.UpdateCredentialsRequest;
 import com.traverse.auth.entity.Role;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -110,5 +113,60 @@ class AuthFlowIntegrationTest {
         mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new RegisterRequest("short@example.com", "short", null))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void adminCanUpdateAndDeleteAnotherUsersCredentials() throws Exception {
+        Cookie adminCookie = registerAndLogin("admin2@example.com", "password123");
+        Long targetId = registerAndGetId("target@example.com", "password123");
+
+        UpdateCredentialsRequest patch = new UpdateCredentialsRequest("target-renamed@example.com", Role.ADMIN, false);
+        mockMvc.perform(patch("/api/auth/users/" + targetId).cookie(adminCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patch)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("target-renamed@example.com"))
+                .andExpect(jsonPath("$.role").value("ADMIN"));
+
+        // disabled account can no longer log in
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("target-renamed@example.com", "password123"))))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(delete("/api/auth/users/" + targetId).cookie(adminCookie))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/auth/users/" + targetId).cookie(adminCookie))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void nonAdminCannotManageOtherUsers() throws Exception {
+        Long targetId = registerAndGetId("first-becomes-admin@example.com", "password123");
+        Cookie regularUserCookie = registerAndLogin("plain-user@example.com", "password123");
+
+        mockMvc.perform(delete("/api/auth/users/" + targetId).cookie(regularUserCookie))
+                .andExpect(status().isForbidden());
+    }
+
+    private Long registerAndGetId(String email, String password) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RegisterRequest(email, password, null))))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+    }
+
+    private Cookie registerAndLogin(String email, String password) throws Exception {
+        mockMvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RegisterRequest(email, password, null))))
+                .andExpect(status().isCreated());
+
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, password))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return loginResult.getResponse().getCookie("access_token");
     }
 }
