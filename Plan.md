@@ -205,9 +205,40 @@ PR(s) before the next starts.
     confirmed `nearby` resolves both directions, then deleted the travel
     and confirmed every child row count dropped to 0 in Postgres.
 
-- [ ] **Phase 6 — Payment Service**
-  - Spring Boot + Spring Data JPA. Payment method CRUD, Stripe integration,
-    PayPal integration (sandbox keys via secrets, never hardcoded).
+- [x] **Phase 6 — Payment Service**
+  - Spring Boot + Spring Data JPA. ADMIN-only CRUD on `/api/payments`. Never
+    stores raw card numbers — only the opaque token/id the provider's own
+    client-side SDK (Stripe.js / PayPal JS SDK) already produced, plus safe
+    display metadata (brand/last4/expiry, or PayPal payer email).
+  - Real integrations behind a `PaymentGatewayClient` interface: Stripe via
+    the official `stripe-java` SDK, PayPal via a direct `RestClient` against
+    their real v3 Vault "Payment Tokens" REST API (their full SDK is
+    heavier than this needs). One `@Transactional` method per operation;
+    "only one default payment method per user" cascades an unset onto
+    whichever one previously held it.
+  - **No real Stripe/PayPal sandbox credentials available in this
+    environment** — the user doesn't have accounts yet (both are free,
+    no card required, just not set up). Everything that doesn't require
+    them is fully verified live; the actual external call is verified to
+    *fail gracefully* (502, with a clear message) rather than verified to
+    *succeed*. Swap in real `sk_test_...`/PayPal sandbox `client_id`+
+    `client_secret` in `.env` whenever available and this becomes a full
+    live check with no code changes.
+  - Bug caught during live verification: the Flyway migration declared
+    `expiry_month`/`expiry_year` as `SMALLINT`, but the JPA entity uses
+    `Integer` (maps to `INTEGER`) — `ddl-auto: validate` caught the exact
+    mismatch on startup (`found int2, expecting integer`) and crash-looped
+    the container. Fixed by aligning the migration to `INTEGER`.
+  - Verified for real: 6 automated tests (MockMvc + mocked
+    `StripePaymentGatewayClient`/`PaypalPaymentGatewayClient`), then full
+    `docker compose up --build` — confirmed the Flyway-migrated schema
+    matches the entity, bootstrap admin login, `GET /api/payments` (empty
+    list, no external call needed), 401 unauthenticated, 404 on a missing
+    id, and both `POST /api/payments` (Stripe and PayPal) making a real
+    outbound network call and getting cleanly rejected (502) by the actual
+    provider APIs with the placeholder credentials — proving the whole
+    pipeline (routing, auth, service layer, real SDK/REST call, error
+    translation) end to end.
 
 - [ ] **Phase 7 — Admin Dashboard (Angular, built last)**
   - Responsive UI (Chrome + Firefox), JWT-authenticated, CRUD screens for
@@ -268,7 +299,7 @@ Traverse/
 │   ├── auth-service/     (Spring Boot + Spring Security + Eureka client)
 │   ├── user-service/     (Spring Boot + Spring Data JPA + OpenFeign + Eureka client)
 │   ├── travel-service/   (Spring Boot + Spring Data JPA + Spring Data Neo4j)
-│   └── payment-service/  (Spring Boot + Spring Data JPA)
+│   └── payment-service/  (Spring Boot + Spring Data JPA + Stripe SDK + PayPal REST)
 ├── Frontend/              (Angular Admin Dashboard — built last)
 ├── ansible/
 │   └── playbooks/
@@ -303,9 +334,15 @@ Traverse/
 
 ## Next Step
 
-Phases 0-5 are done (git workflow, infra skeleton, API Gateway, Auth
-Service, Eureka discovery, User Service, Travel Service). On
-`feature/travel-service`, pending user add/commit/push + PR.
+Phases 0-6 are done — every backend service now exists (git workflow,
+infra skeleton, API Gateway, Auth Service, Eureka discovery, User Service,
+Travel Service, Payment Service). On `feature/payment-service`, pending
+user add/commit/push + PR.
 
-Next: Phase 6 — Payment Service (Stripe + PayPal, last backend service
-before the Admin Dashboard).
+**Reminder:** Stripe/PayPal are integrated but unverified live — add real
+free sandbox credentials to `.env` (`STRIPE_SECRET_KEY`, `PAYPAL_CLIENT_ID`,
+`PAYPAL_CLIENT_SECRET`) whenever convenient for a full live check.
+
+Next: Phase 7 — Admin Dashboard (Angular). This is the last remaining
+backend-adjacent phase before moving into Phases 8+ (CI/CD, Ansible,
+logging, security hardening).

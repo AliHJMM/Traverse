@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  flyway:
+    enabled: false
+
+eureka:
+  client:
+    enabled: false
+
+jwt:
+  secret: test-secret-key-please-be-at-least-32-bytes-long
+
+app:
+  cookie:
+    name: access_token
+
+payment:
+  stripe:
+    secret-key: sk_test_not_used_gateway_is_mocked
+  paypal:
+    base-uri: https://api-m.sandbox.paypal.com
+    client-id: not_used_gateway_is_mocked
+    client-secret: not_used_gateway_is_mocked
