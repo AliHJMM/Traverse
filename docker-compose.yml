@@ -149,8 +149,34 @@ services:
       discovery-server:
         condition: service_healthy
 
-  # payment-service and Frontend/ are added once their Dockerfiles exist
-  # (Phases 6-7 of Plan.md).
+  # No container_name / host port mapping -- scalable the same way as the
+  # other backend services.
+  payment-service:
+    build:
+      context: ./Backend/payment-service
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_NAME: ${COOKIE_NAME}
+      EUREKA_URI: http://discovery-server:8761/eureka
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      PAYPAL_BASE_URI: ${PAYPAL_BASE_URI}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET}
+    networks:
+      - traverse-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+
+  # Frontend/ is added once its Dockerfile exists (Phase 7 of Plan.md).
 
 networks:
   traverse-net:
