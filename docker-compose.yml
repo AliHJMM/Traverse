@@ -121,8 +121,36 @@ services:
       discovery-server:
         condition: service_healthy
 
-  # travel-service, payment-service, and Frontend/ are added once their
-  # Dockerfiles exist (Phases 5-7 of Plan.md).
+  # No container_name / host port mapping -- scalable the same way as
+  # auth-service and user-service.
+  travel-service:
+    build:
+      context: ./Backend/travel-service
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_NAME: ${COOKIE_NAME}
+      EUREKA_URI: http://discovery-server:8761/eureka
+    networks:
+      - traverse-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+
+  # payment-service and Frontend/ are added once their Dockerfiles exist
+  # (Phases 6-7 of Plan.md).
 
 networks:
   traverse-net:
