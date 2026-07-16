@@ -1,0 +1,46 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: travel-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:traverse}
+    username: ${POSTGRES_USER:traverse_admin}
+    password: ${POSTGRES_PASSWORD:dev_local_only_pw}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: travel
+  flyway:
+    schemas: travel
+    default-schema: travel
+    locations: classpath:db/migration
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    authentication:
+      username: ${NEO4J_USER:neo4j}
+      password: ${NEO4J_PASSWORD:dev_local_only_pw}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-change-me-please-must-be-at-least-32-bytes}
+
+app:
+  cookie:
+    name: ${COOKIE_NAME:access_token}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

@@ -160,9 +160,50 @@ PR(s) before the next starts.
     renamed login works), then deleted and confirmed *both* the profile
     (404) and the credential (login now fails) were gone.
 
-- [ ] **Phase 5 — Travel Service**
-  - Spring Boot + Spring Data JPA (Postgres) + Spring Data Neo4j. Itinerary
-    CRUD; Neo4j graph for destination/route relationships.
+- [x] **Phase 5 — Travel Service**
+  - Spring Boot + Spring Data JPA (Postgres) + Spring Data Neo4j. ADMIN-only
+    CRUD on `/api/travels`: a `Travel` aggregate (title, dates, computed
+    `durationDays`) owning `destinations`/`activities`/`accommodations`/
+    `transportations` as JPA one-to-many children with `cascade=ALL,
+    orphanRemoval=true` — deleting or updating a travel cascades to all of
+    them in Postgres, verified against a real DB (row counts confirmed 0
+    after delete, not just "no error").
+  - Neo4j graph: every itinerary's consecutive destinations get MERGEd into
+    a `Destination` node + `CONNECTED_TO` relationship with a `tripCount`
+    that increments on repeat routes, so the graph is a byproduct of real
+    itineraries, not seed data. `GET /api/travels/destinations/{city}/nearby`
+    does a real 1-2 hop Cypher traversal for recommendations — verified with
+    `cypher-shell` directly against the graph, not just via the API.
+  - **Two real bugs found and fixed during live verification** (neither
+    surfaced by the mocked-Neo4j unit tests, only by hitting the actual
+    running stack):
+    1. `@EnableJpaRepositories`/`@EnableNeo4jRepositories` explicitly added
+       to the application class turned out to be unnecessary — Spring
+       Boot's autoconfiguration already separates JPA vs Neo4j repositories
+       on its own ("entering strict repository configuration mode" in the
+       logs) — and the explicit annotations interfered with it.
+    2. The real root cause: combining `spring-boot-starter-data-jpa` and
+       `spring-boot-starter-data-neo4j` in one app means Spring Boot's
+       Neo4j auto-config backs off from creating a transaction manager
+       entirely once it sees JPA already claiming the bean name
+       `transactionManager` (both auto-config classes use that exact bean
+       method name). Neo4j repository calls then fail with a
+       `NullPointerException` deep in Spring Data's internal
+       `TransactionTemplate` plumbing. Fixed by hand-defining both
+       `PlatformTransactionManager` beans explicitly: JPA's marked
+       `@Primary` (so every *unqualified* `@Transactional` — the vast
+       majority of the codebase — keeps working exactly as before), and a
+       distinctly-named `neo4jTransactionManager` that
+       `DestinationGraphService` opts into explicitly
+       (`@Transactional("neo4jTransactionManager")`).
+  - Verified for real: 6 automated tests (MockMvc + mocked
+    `DestinationGraphService`, so Postgres/JPA + security get exercised
+    without needing a live Neo4j in the fast suite), then full
+    `docker compose up --build` across postgres, neo4j, discovery-server,
+    auth-service, travel-service, gateway — created a real 2-destination
+    itinerary, confirmed the graph edge and `tripCount` via `cypher-shell`,
+    confirmed `nearby` resolves both directions, then deleted the travel
+    and confirmed every child row count dropped to 0 in Postgres.
 
 - [ ] **Phase 6 — Payment Service**
   - Spring Boot + Spring Data JPA. Payment method CRUD, Stripe integration,
@@ -262,9 +303,9 @@ Traverse/
 
 ## Next Step
 
-Phases 0-4 are done (git workflow, infra skeleton, API Gateway, Auth
-Service, Eureka discovery, User Service). On `feature/user-service`,
-pending user add/commit/push + PR.
+Phases 0-5 are done (git workflow, infra skeleton, API Gateway, Auth
+Service, Eureka discovery, User Service, Travel Service). On
+`feature/travel-service`, pending user add/commit/push + PR.
 
-Next: Phase 5 — Travel Service (first service touching both PostgreSQL and
-Neo4j).
+Next: Phase 6 — Payment Service (Stripe + PayPal, last backend service
+before the Admin Dashboard).
