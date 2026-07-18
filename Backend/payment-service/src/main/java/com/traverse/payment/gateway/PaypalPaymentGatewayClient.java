@@ -37,8 +37,14 @@ public class PaypalPaymentGatewayClient implements PaymentGatewayClient {
         return PaymentProvider.PAYPAL;
     }
 
+    /**
+     * Unlike Stripe, a PayPal v3 Vault payment token is already tied to a
+     * specific payer from the vaulting flow that created it -- there's no
+     * separate "customer" object to create or attach here, so userId isn't
+     * needed on this path (kept only for interface parity with Stripe).
+     */
     @Override
-    public AttachedPaymentMethod attach(String token) {
+    public AttachedPaymentMethod attach(Long userId, String token) {
         String accessToken = fetchAccessToken();
         try {
             Map<String, Object> response = restClient.get()
