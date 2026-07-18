@@ -12,7 +12,7 @@ public interface PaymentGatewayClient {
 
     PaymentProvider provider();
 
-    AttachedPaymentMethod attach(String token);
+    AttachedPaymentMethod attach(Long userId, String token);
 
     void detach(String externalId);
 }

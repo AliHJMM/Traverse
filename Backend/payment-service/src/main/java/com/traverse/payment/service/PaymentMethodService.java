@@ -26,7 +26,7 @@ public class PaymentMethodService {
     }
 
     public PaymentMethod create(CreatePaymentMethodRequest request) {
-        AttachedPaymentMethod attached = gatewayFor(request.provider()).attach(request.token());
+        AttachedPaymentMethod attached = gatewayFor(request.provider()).attach(request.userId(), request.token());
 
         if (request.setDefault()) {
             clearExistingDefault(request.userId());

@@ -216,29 +216,44 @@ PR(s) before the next starts.
     heavier than this needs). One `@Transactional` method per operation;
     "only one default payment method per user" cascades an unset onto
     whichever one previously held it.
-  - **No real Stripe/PayPal sandbox credentials available in this
-    environment** — the user doesn't have accounts yet (both are free,
-    no card required, just not set up). Everything that doesn't require
-    them is fully verified live; the actual external call is verified to
-    *fail gracefully* (502, with a clear message) rather than verified to
-    *succeed*. Swap in real `sk_test_...`/PayPal sandbox `client_id`+
-    `client_secret` in `.env` whenever available and this becomes a full
-    live check with no code changes.
-  - Bug caught during live verification: the Flyway migration declared
+  - Got free Stripe and PayPal sandbox accounts and put real credentials
+    in `.env` for both. Stripe is **fully live-verified** end to end (see
+    bug #2 below). PayPal is **OAuth-verified but not vault-verified**: the
+    real `client_id`/`client_secret` correctly exchange for a real access
+    token (confirmed live), but creating a Vault payment token from a raw
+    card number requires PayPal's separate "Advanced Credit and Debit Card
+    Payments" business approval — a review process, not a settings
+    checkbox — which isn't available on a fresh sandbox app. This isn't a
+    gap in our integration: PayPal's intended flow is for the browser
+    (their JS SDK / hosted card fields) to produce the vault token, and
+    our backend already correctly expects a finished token as input. Full
+    live verification of the PayPal path is deferred to Phase 7, once the
+    Angular frontend can produce a real token the intended way.
+  - Bug #1 caught during live verification: the Flyway migration declared
     `expiry_month`/`expiry_year` as `SMALLINT`, but the JPA entity uses
     `Integer` (maps to `INTEGER`) — `ddl-auto: validate` caught the exact
     mismatch on startup (`found int2, expecting integer`) and crash-looped
     the container. Fixed by aligning the migration to `INTEGER`.
+  - Bug #2 caught during live verification (with the real Stripe key): the
+    first live create+delete round-trip worked for create, but delete
+    failed with a real Stripe error — *"The payment method you provided is
+    not attached to a customer so detachment is impossible."* `attach()`
+    was only retrieving the PaymentMethod's card details, never actually
+    attaching it to a Stripe Customer, so there was nothing for `detach()`
+    to later undo. Fixed by adding a `payment.stripe_customers` table
+    mapping each `userId` to one Stripe Customer (created on their first
+    saved card, reused after that) and calling Stripe's real `.attach()`
+    against it. Re-verified live: create → list → delete (real detach,
+    confirmed on Stripe's side the PaymentMethod's `customer` field went
+    back to `null`) → a second card for the same user correctly reused the
+    same stored Customer instead of creating a new one.
   - Verified for real: 6 automated tests (MockMvc + mocked
     `StripePaymentGatewayClient`/`PaypalPaymentGatewayClient`), then full
-    `docker compose up --build` — confirmed the Flyway-migrated schema
-    matches the entity, bootstrap admin login, `GET /api/payments` (empty
-    list, no external call needed), 401 unauthenticated, 404 on a missing
-    id, and both `POST /api/payments` (Stripe and PayPal) making a real
-    outbound network call and getting cleanly rejected (502) by the actual
-    provider APIs with the placeholder credentials — proving the whole
-    pipeline (routing, auth, service layer, real SDK/REST call, error
-    translation) end to end.
+    `docker compose up --build` with the real Stripe key — bootstrap admin
+    login, full payment-method lifecycle against the actual Stripe API
+    (not mocked), 401 unauthenticated, 404 on a missing id, and the PayPal
+    path's real (currently credential-less) API call failing gracefully
+    with a clean 502.
 
 - [ ] **Phase 7 — Admin Dashboard (Angular, built last)**
   - Responsive UI (Chrome + Firefox), JWT-authenticated, CRUD screens for
@@ -339,9 +354,10 @@ infra skeleton, API Gateway, Auth Service, Eureka discovery, User Service,
 Travel Service, Payment Service). On `feature/payment-service`, pending
 user add/commit/push + PR.
 
-**Reminder:** Stripe/PayPal are integrated but unverified live — add real
-free sandbox credentials to `.env` (`STRIPE_SECRET_KEY`, `PAYPAL_CLIENT_ID`,
-`PAYPAL_CLIENT_SECRET`) whenever convenient for a full live check.
+Stripe is fully live-verified with a real sandbox key. PayPal credentials
+are in `.env` and OAuth-verified live; full Vault flow verification is
+deferred to Phase 7 (needs a real browser-produced token, which requires
+PayPal business approval to create any other way).
 
 Next: Phase 7 — Admin Dashboard (Angular). This is the last remaining
 backend-adjacent phase before moving into Phases 8+ (CI/CD, Ansible,
