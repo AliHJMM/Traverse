@@ -55,7 +55,7 @@ class PaymentMethodFlowIntegrationTest {
     @Test
     void adminCanCreateListAndDeleteAStripePaymentMethod() throws Exception {
         when(stripeClient.provider()).thenReturn(PaymentProvider.STRIPE);
-        when(stripeClient.attach("pm_test_123"))
+        when(stripeClient.attach(42L, "pm_test_123"))
                 .thenReturn(new AttachedPaymentMethod("pm_test_123", "visa", "4242", 12, 2030, null));
         when(paypalClient.provider()).thenReturn(PaymentProvider.PAYPAL);
 
@@ -90,9 +90,9 @@ class PaymentMethodFlowIntegrationTest {
     void settingNewDefaultUnsetsThePreviousOne() throws Exception {
         when(stripeClient.provider()).thenReturn(PaymentProvider.STRIPE);
         when(paypalClient.provider()).thenReturn(PaymentProvider.PAYPAL);
-        when(stripeClient.attach("pm_first"))
+        when(stripeClient.attach(7L, "pm_first"))
                 .thenReturn(new AttachedPaymentMethod("pm_first", "visa", "1111", 1, 2030, null));
-        when(stripeClient.attach("pm_second"))
+        when(stripeClient.attach(7L, "pm_second"))
                 .thenReturn(new AttachedPaymentMethod("pm_second", "mastercard", "2222", 2, 2031, null));
 
         Cookie adminCookie = tokenCookie(1L, "admin@example.com", Role.ADMIN);
@@ -125,7 +125,7 @@ class PaymentMethodFlowIntegrationTest {
     void gatewayRejectionSurfacesAsBadGateway() throws Exception {
         when(stripeClient.provider()).thenReturn(PaymentProvider.STRIPE);
         when(paypalClient.provider()).thenReturn(PaymentProvider.PAYPAL);
-        when(stripeClient.attach("pm_invalid")).thenThrow(new PaymentGatewayException("Stripe rejected payment method pm_invalid"));
+        when(stripeClient.attach(7L, "pm_invalid")).thenThrow(new PaymentGatewayException("Stripe rejected payment method pm_invalid"));
 
         Cookie adminCookie = tokenCookie(1L, "admin@example.com", Role.ADMIN);
         mockMvc.perform(post("/api/payments").cookie(adminCookie).contentType(MediaType.APPLICATION_JSON)
