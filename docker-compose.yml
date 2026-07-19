@@ -258,6 +258,15 @@ services:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
       - ./jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
+      # Runs as root (see jenkins/Dockerfile), so this is root's Maven cache
+      # -- without it, every container recreate re-downloads the entire
+      # dependency tree for all 6 backend modules from scratch.
+      - jenkins_maven_repo:/root/.m2
+      # The real project directory (this same docker-compose.yml lives
+      # here), so the pipeline's deploy stage can run `docker compose up`
+      # against the actual .env instead of its own gitignore'd-.env-less
+      # git checkout. See jenkins/Jenkinsfile's deploy stage.
+      - .:/host-project:ro
     networks:
       - traverse-net
     depends_on:
@@ -276,3 +285,4 @@ volumes:
   sonarqube_extensions:
   sonarqube_logs:
   jenkins_home:
+  jenkins_maven_repo:

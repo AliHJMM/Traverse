@@ -1,5 +1,14 @@
 jenkins:
   systemMessage: "Traverse CI"
+  # Docker Desktop's VM here only has ~7.4GB total, shared across the whole
+  # already-running stack (14 containers) plus whatever this build spawns.
+  # The default 2 executors let the matrix stage's 6 backend builds run
+  # 3-wide in parallel, which was enough concurrent JVM/Maven memory
+  # pressure to get a build's own child process OOM-killed silently
+  # (Jenkins kept reporting "building" for a process that no longer
+  # existed). Pinning to 1 executor forces every parallel stage --
+  # the matrix cells, most notably -- to run one at a time instead.
+  numExecutors: 1
   securityRealm:
     local:
       allowsSignup: false
@@ -54,6 +63,14 @@ jobs:
                 repoOwner('AliHJMM')
                 repository('Traverse')
                 credentialsId('github-credentials')
+                traits {
+                  gitHubBranchDiscovery {
+                    strategyId(1)
+                  }
+                  gitHubPullRequestDiscovery {
+                    strategyId(1)
+                  }
+                }
               }
             }
           }

@@ -1,6 +1,14 @@
-FROM jenkins/jenkins:lts-jdk17
+FROM jenkins/jenkins:lts-jdk21
 
 USER root
+
+# Debian's `maven` package pulls in its own default-jdk as a dependency,
+# which on this base OS would be an older JDK than the one Jenkins itself
+# bundles -- explicitly pinning JAVA_HOME/PATH here ensures `mvn` shell
+# steps use the SAME JDK 21 Jenkins runs on (the project's Spring Boot
+# modules target --release 21), not whatever apt resolves.
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 # Docker CLI only (no daemon) -- the host's docker.sock is bind-mounted in,
 # so `docker build`/`docker compose` run "outside of docker" against the

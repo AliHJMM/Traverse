@@ -1,6 +1,18 @@
 // Runs on the Jenkins controller itself (no separate agents configured --
 // Maven/Node/Firefox/Docker CLI are all installed directly in the custom
 // jenkins/Dockerfile image, see that file for why).
+//
+// The backend services build in a genuine sequential loop, not a `matrix`/
+// `parallel` block: Declarative Pipeline's parallel branches run as
+// concurrent threads inside the ONE node this pipeline already allocated
+// (agent any, above) -- they are not gated by Jenkins executor count at
+// all, so numExecutors has no effect on them. With 6 full JVMs (Maven +
+// Spring Boot test contexts) running at once, that briefly pushed this
+// container to ~3.3GB / 44% of Docker Desktop's entire 7.4GB VM allocation
+// (which is shared with the other 13 already-running containers) and
+// nearly OOM-killed a build. One service at a time avoids that entirely.
+def BACKEND_SERVICES = ['discovery-server', 'gateway', 'auth-service', 'user-service', 'travel-service', 'payment-service']
+
 pipeline {
     agent any
 
@@ -11,25 +23,13 @@ pipeline {
 
     stages {
         stage('Backend: build & test') {
-            matrix {
-                axes {
-                    axis {
-                        name 'SERVICE'
-                        values 'discovery-server', 'gateway', 'auth-service', 'user-service', 'travel-service', 'payment-service'
-                    }
-                }
-                stages {
-                    stage('build') {
-                        steps {
-                            dir("Backend/${SERVICE}") {
-                                sh 'mvn -B clean verify'
-                            }
+            steps {
+                script {
+                    for (svc in BACKEND_SERVICES) {
+                        dir("Backend/${svc}") {
+                            sh 'mvn -B clean verify'
                         }
-                        post {
-                            always {
-                                junit testResults: "Backend/${SERVICE}/target/surefire-reports/*.xml", allowEmptyResults: true
-                            }
-                        }
+                        junit testResults: "Backend/${svc}/target/surefire-reports/*.xml", allowEmptyResults: true
                     }
                 }
             }
@@ -49,8 +49,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     script {
-                        def services = ['discovery-server', 'gateway', 'auth-service', 'user-service', 'travel-service', 'payment-service']
-                        for (svc in services) {
+                        for (svc in BACKEND_SERVICES) {
                             dir("Backend/${svc}") {
                                 sh "mvn -B sonar:sonar -Dsonar.projectKey=traverse-${svc}"
                             }
@@ -78,12 +77,21 @@ pipeline {
             }
         }
 
+        // Deploys against the REAL project directory (bind-mounted into
+        // this container, see docker-compose.yml's jenkins service), not
+        // Jenkins's own git-cloned workspace -- that clone never has .env
+        // (gitignored, so `git checkout` never produces it), which would
+        // leave every ${VAR} in docker-compose.yml resolving to empty.
+        // /host-project is the actual host path already running the full
+        // stack, reached through the same mounted docker.sock.
         stage('Deploy (main only)') {
             when {
                 branch 'main'
             }
             steps {
-                sh 'docker compose up -d --build'
+                dir('/host-project') {
+                    sh 'docker compose up -d --build'
+                }
             }
         }
     }
