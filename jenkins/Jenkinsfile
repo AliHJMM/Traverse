@@ -84,13 +84,22 @@ pipeline {
         // leave every ${VAR} in docker-compose.yml resolving to empty.
         // /host-project is the actual host path already running the full
         // stack, reached through the same mounted docker.sock.
+        //
+        // -p traverse pins the compose project name explicitly. Without it,
+        // compose infers the name from the current directory basename --
+        // "traverse" on the host (C:\Users\AliHa\Traverse) but "host-project"
+        // in here (the bind-mount point), a DIFFERENT project. That mismatch
+        // still creates the fixed container_name: containers, but under a
+        // new project's network/volumes, and collides with the already-
+        // running same-named containers from the original "traverse"
+        // project -- "Conflict. The container name ... is already in use".
         stage('Deploy (main only)') {
             when {
                 branch 'main'
             }
             steps {
                 dir('/host-project') {
-                    sh 'docker compose up -d --build'
+                    sh 'docker compose -p traverse up -d --build'
                 }
             }
         }
