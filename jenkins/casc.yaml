@@ -1,0 +1,71 @@
+jenkins:
+  systemMessage: "Traverse CI"
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-credentials"
+              username: "AliHJMM"
+              password: "${GITHUB_TOKEN}"
+              description: "GitHub PAT -- repo checkout + commit status reporting"
+          - string:
+              scope: GLOBAL
+              id: "sonarqube-token"
+              secret: "${SONARQUBE_TOKEN}"
+              description: "SonarQube analysis token"
+
+unclassified:
+  location:
+    url: "http://localhost:8090/"
+  sonarGlobalConfiguration:
+    installations:
+      - name: "SonarQube"
+        serverUrl: "http://sonarqube:9000"
+        credentialsId: "sonarqube-token"
+
+# Multibranch (not a single pipelineJob) so every branch AND every PR gets
+# built automatically -- the github-branch-source plugin reports a real
+# GitHub Checks status per head it builds, which is what branch protection's
+# "require status checks to pass" gates on. Periodic scan (every 2 minutes)
+# is the multibranch equivalent of classic Poll SCM -- no public webhook
+# endpoint needed since Jenkins is doing the asking, not GitHub.
+jobs:
+  - script: >
+      multibranchPipelineJob('traverse-pipeline') {
+        branchSources {
+          branchSource {
+            source {
+              github {
+                id('traverse-github-source')
+                configuredByUrl(true)
+                repositoryUrl('https://github.com/AliHJMM/Traverse')
+                repoOwner('AliHJMM')
+                repository('Traverse')
+                credentialsId('github-credentials')
+              }
+            }
+          }
+        }
+        factory {
+          workflowBranchProjectFactory {
+            scriptPath('jenkins/Jenkinsfile')
+          }
+        }
+        triggers {
+          periodicFolderTrigger {
+            interval('2m')
+          }
+        }
+      }

@@ -1,0 +1,90 @@
+// Runs on the Jenkins controller itself (no separate agents configured --
+// Maven/Node/Firefox/Docker CLI are all installed directly in the custom
+// jenkins/Dockerfile image, see that file for why).
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timestamps()
+    }
+
+    stages {
+        stage('Backend: build & test') {
+            matrix {
+                axes {
+                    axis {
+                        name 'SERVICE'
+                        values 'discovery-server', 'gateway', 'auth-service', 'user-service', 'travel-service', 'payment-service'
+                    }
+                }
+                stages {
+                    stage('build') {
+                        steps {
+                            dir("Backend/${SERVICE}") {
+                                sh 'mvn -B clean verify'
+                            }
+                        }
+                        post {
+                            always {
+                                junit testResults: "Backend/${SERVICE}/target/surefire-reports/*.xml", allowEmptyResults: true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Frontend: build & test') {
+            steps {
+                dir('Frontend') {
+                    sh 'npm ci'
+                    sh 'npx ng test --watch=false --browsers=FirefoxHeadless'
+                    sh 'npx ng build'
+                }
+            }
+        }
+
+        stage('SonarQube: analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    script {
+                        def services = ['discovery-server', 'gateway', 'auth-service', 'user-service', 'travel-service', 'payment-service']
+                        for (svc in services) {
+                            dir("Backend/${svc}") {
+                                sh "mvn -B sonar:sonar -Dsonar.projectKey=traverse-${svc}"
+                            }
+                        }
+                    }
+                    dir('Frontend') {
+                        sh '''
+                            sonar-scanner \
+                              -Dsonar.projectKey=traverse-frontend \
+                              -Dsonar.sources=src \
+                              -Dsonar.tests=src \
+                              -Dsonar.test.inclusions=**/*.spec.ts \
+                              -Dsonar.exclusions=**/*.spec.ts
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Quality gate') {
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Deploy (main only)') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh 'docker compose up -d --build'
+            }
+        }
+    }
+}
