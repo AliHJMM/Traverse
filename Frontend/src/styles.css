@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "@angular/material/prebuilt-themes/azure-blue.css";
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+  background-color: #f7f8fa;
+}
+
+/*
+ * Tailwind's Preflight sets `border-style: solid` on every element as a
+ * baseline reset. Angular Material's outlined form-field never sets a style
+ * for the notch piece's right edge (it relies on the browser default of
+ * `none`), so Tailwind's reset leaks in and draws a stray solid line down
+ * the middle of the field. This restores Material's intended default.
+ */
+.mat-mdc-notch-piece {
+  border-right-style: none;
+}

@@ -1,0 +1,52 @@
+<div class="flex items-center gap-3 px-6 pt-6">
+  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+    <mat-icon>credit_card</mat-icon>
+  </div>
+  <h2 mat-dialog-title class="!m-0 !p-0 !text-lg">Add payment method</h2>
+</div>
+
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="flex flex-col gap-1">
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>User ID</mat-label>
+      <input matInput type="number" formControlName="userId" />
+      @if (form.controls.userId.invalid && form.controls.userId.touched) {
+        <mat-error>A user id is required.</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Provider</mat-label>
+      <mat-select formControlName="provider" (selectionChange)="onProviderChange()">
+        <mat-option value="STRIPE">Stripe</mat-option>
+        <mat-option value="PAYPAL">PayPal</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    @if (form.controls.provider.value === 'STRIPE') {
+      <div>
+        <label class="mb-1 block text-sm font-medium text-slate-600">Card details</label>
+        <div #cardElement class="rounded-lg border border-slate-300 bg-white p-3 focus-within:border-blue-500"></div>
+        @if (cardError()) {
+          <p class="mt-1 text-sm text-red-600">{{ cardError() }}</p>
+        }
+      </div>
+    } @else {
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>PayPal payment token</mat-label>
+        <input matInput formControlName="paypalToken" placeholder="From the PayPal JS SDK vaulting flow" />
+      </mat-form-field>
+    }
+
+    <mat-slide-toggle formControlName="setDefault">Set as default</mat-slide-toggle>
+
+    @if (errorMessage()) {
+      <p class="text-sm text-red-600">{{ errorMessage() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancel</button>
+    <button mat-flat-button color="primary" type="submit" class="!rounded-lg" [disabled]="saving()">Add</button>
+  </mat-dialog-actions>
+</form>

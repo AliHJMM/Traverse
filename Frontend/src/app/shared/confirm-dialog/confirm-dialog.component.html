@@ -1,0 +1,17 @@
+<div class="flex items-start gap-3 px-6 pt-6">
+  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+    <mat-icon>warning</mat-icon>
+  </div>
+  <h2 mat-dialog-title class="!m-0 !p-0 pt-2 !text-lg">{{ data.title }}</h2>
+</div>
+<mat-dialog-content>
+  <p class="text-slate-600">{{ data.message }}</p>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Cancel</button>
+  <button
+    mat-flat-button
+    (click)="confirm()"
+    class="!rounded-lg !bg-red-600 !text-white hover:!bg-red-700"
+  >{{ data.confirmLabel ?? 'Delete' }}</button>
+</mat-dialog-actions>
