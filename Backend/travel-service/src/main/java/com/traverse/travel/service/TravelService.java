@@ -13,6 +13,7 @@ import com.traverse.travel.entity.Transportation;
 import com.traverse.travel.entity.Travel;
 import com.traverse.travel.exception.TravelNotFoundException;
 import com.traverse.travel.repository.TravelRepository;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,12 +42,16 @@ public class TravelService {
 
     @Transactional(readOnly = true)
     public List<Travel> findAll() {
-        return travelRepository.findAll();
+        List<Travel> travels = travelRepository.findAll();
+        travels.forEach(this::initializeCollections);
+        return travels;
     }
 
     @Transactional(readOnly = true)
     public Travel findById(Long id) {
-        return travelRepository.findById(id).orElseThrow(() -> new TravelNotFoundException(id));
+        Travel travel = travelRepository.findById(id).orElseThrow(() -> new TravelNotFoundException(id));
+        initializeCollections(travel);
+        return travel;
     }
 
     public Travel update(Long id, UpdateTravelRequest request) {
@@ -75,6 +80,24 @@ public class TravelService {
         // destinations/activities/accommodations/transportations cascade via
         // orphanRemoval -- no separate delete calls needed.
         travelRepository.deleteById(id);
+    }
+
+    /**
+     * The controller maps entities to response DTOs after this method
+     * returns, once the transaction (and Hibernate session) has already
+     * closed -- open-in-view is deliberately off, so the four @OneToMany
+     * collections (lazy by default) would otherwise throw
+     * LazyInitializationException the first time the controller touches
+     * them. Initializing them here, still inside the transaction, is the
+     * fix. (A single @EntityGraph across all four isn't an option: Hibernate
+     * throws MultipleBagFetchException when more than one List-typed
+     * collection is eagerly joined in the same query.)
+     */
+    private void initializeCollections(Travel travel) {
+        Hibernate.initialize(travel.getDestinations());
+        Hibernate.initialize(travel.getActivities());
+        Hibernate.initialize(travel.getAccommodations());
+        Hibernate.initialize(travel.getTransportations());
     }
 
     private void populate(Travel travel, List<DestinationRequest> destinations, List<ActivityRequest> activities,

@@ -6,11 +6,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CreateUserRequest(
-        @NotBlank @Email String email,
+        @NotBlank @Email @Size(max = 255) String email,
         @NotBlank @Size(min = 8, message = "password must be at least 8 characters") String password,
         Role role,
-        @NotBlank String fullName,
-        String phone,
-        String address
+        @NotBlank @Size(max = 255) String fullName,
+        @Size(max = 50) String phone,
+        @Size(max = 500) String address
 ) {
 }

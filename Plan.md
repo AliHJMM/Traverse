@@ -255,9 +255,67 @@ PR(s) before the next starts.
     path's real (currently credential-less) API call failing gracefully
     with a clean 502.
 
-- [ ] **Phase 7 — Admin Dashboard (Angular, built last)**
-  - Responsive UI (Chrome + Firefox), JWT-authenticated, CRUD screens for
-    users/travels/payments, tested against the live services.
+- [x] **Phase 7 — Admin Dashboard (Angular, built last)**
+  - Angular 19 standalone app (no NgModules), Angular Material for
+    components + **Tailwind CSS v4 for all layout/spacing/styling — no
+    hand-written SCSS/CSS anywhere** in the project (a deliberate,
+    explicit choice; `angular.json`'s component schematic defaults to
+    `style: none` so `ng generate` never scaffolds a stylesheet again).
+    JWT auth via the same httpOnly/SameSite=Strict cookie the backend
+    already issues — no token handling in JS at all, just a functional
+    `authInterceptor` (`withCredentials`) and a functional `adminGuard`
+    that calls `/api/auth/me`.
+  - Served same-origin: nginx serves the Angular build on `:80` and
+    reverse-proxies `/api/` to the Gateway container, so the cookie's
+    `SameSite=Strict` still applies (a split origin would have broken
+    auth). Stripe's publishable key is injected at container *start*
+    (not baked into the build) via an `env.js` + `envsubst`
+    entrypoint, so the same image works across environments without a
+    rebuild.
+  - CRUD screens for Users, Travels (nested `FormArray`s for
+    destinations/activities/accommodations/transportations), and
+    Payments — the last with a real `@stripe/stripe-js` Elements card
+    field (not a fake form), tokenized client-side and only ever
+    sending Stripe's token to the backend.
+  - Unit tests: Karma + Jasmine, headless Firefox (`karma-firefox-launcher`)
+    to match the Chrome+Firefox compatibility requirement. Recurring
+    gotcha, fixed consistently across every list component's spec:
+    importing `MatDialogModule` into a standalone component's own
+    `imports` (when the component only needs the *injectable*
+    `MatDialog` service, not template directives) creates a
+    component-scoped `MatDialog` provider that silently shadows any
+    `TestBed`-level mock — `spyOn(dialog, 'open')` then fails or never
+    registers. Fixed by dropping `MatDialogModule` from those
+    components' imports and providing the mock via
+    `{ provide: MatDialog, useValue: dialogSpy }` instead.
+  - **Real backend bug found only by live browser testing** (the
+    existing MockMvc `TravelFlowIntegrationTest` structurally couldn't
+    catch it — its class-level `@Transactional` keeps one Hibernate
+    session open for the whole test, masking the issue): with
+    `open-in-view: false`, `TravelService.findAll()`/`findById()`
+    returned entities whose four lazy `@OneToMany` collections
+    (destinations/activities/accommodations/transportations) blew up
+    with `LazyInitializationException` the moment the controller
+    touched them to build the response DTO, since the transaction (and
+    session) had already closed by then. A single `@EntityGraph`
+    across all four wasn't an option — Hibernate throws
+    `MultipleBagFetchException` when more than one `List`-typed
+    collection is eagerly joined in one query. Fixed by explicitly
+    calling `Hibernate.initialize()` on each collection while still
+    inside the read-only transaction.
+  - Verified for real: full unit suite green, then
+    `docker compose up --build` across the entire stack (postgres,
+    neo4j, discovery-server, gateway, auth/user/travel/payment
+    services, frontend), driven with a real headless-Chromium
+    (Playwright) session against `http://localhost` — logged in,
+    confirmed the Users/Travels/Payments sidenav, created/edited/
+    deleted a user (edit persistence checked both in the UI and via a
+    follow-up `curl` against `/api/users`, not just the DOM), created
+    and deleted a travel with a nested destination, and confirmed the
+    Stripe card element genuinely renders as a `js.stripe.com` iframe
+    inside the Add Payment Method dialog. Zero console errors besides
+    one expected, benign 401 from the initial `/api/auth/me`
+    session-check that fires before any login cookie exists.
 
 - [ ] **Phase 8 — CI/CD**
   - Jenkins pipeline: build → unit tests → SonarQube scan → (on main)
@@ -347,18 +405,68 @@ Traverse/
 
 ---
 
+## Phase 7 hardening pass (post-build correctness + design)
+
+Before moving into Phase 8, did a dedicated pass across the whole stack to
+verify correctness (no 500s) and raise the UI from functional to genuinely
+polished. Real issues found and fixed:
+
+- **Reversed travel dates silently accepted**: `endDate` before `startDate`
+  produced a negative `durationDays` instead of being rejected. Added a
+  cross-field `@AssertTrue` validator on `CreateTravelRequest`/
+  `UpdateTravelRequest`.
+- **Misleading 401s on malformed requests, across all 4 services**: bad
+  JSON, wrong HTTP method, non-numeric path IDs, invalid enum values, and
+  missing `Content-Type` were each correctly resolved as 400/405/415
+  *internally* by Spring's `DefaultHandlerExceptionResolver`, but that
+  resolver's `response.sendError(...)` triggers a servlet-container error
+  forward back through the same Spring Security filter chain — and that
+  second pass reports the request as unauthenticated, silently turning the
+  correct status into a misleading 401. Fixed by adding explicit
+  `@ExceptionHandler`s for `HttpMessageNotReadableException`,
+  `MethodArgumentTypeMismatchException`, `HttpRequestMethodNotSupportedException`,
+  and `HttpMediaTypeNotSupportedException` to every service's
+  `GlobalExceptionHandler`, so the correct status returns directly with no
+  forward. Not a crash and not reachable through the real UI (which always
+  sends well-typed requests), but a real correctness gap for direct API
+  callers.
+- **Misleading conflict message on oversized input**: a 5000-character
+  `fullName` overflowed its `VARCHAR(255)` column and surfaced as "Email
+  already registered" (the generic `DataIntegrityViolationException`
+  handler hardcoded that message for any cause). Added `@Size` validation
+  on `fullName`/`phone`/`address` so it's now a clear 400 instead of a
+  confusing DB-level conflict.
+- **UI was functionally correct but visually bare**: added a real Material
+  theme (see Phase 7's Tailwind/Material notes above — the theme file was
+  missing structural CSS for form-field outlines, causing a stray border
+  line), consistent icon-chip headers on every dialog, a proper red delete
+  button (`color="warn"` silently fell back to primary blue because the
+  stripped-down M3 prebuilt theme doesn't define per-variant button
+  colors — fixed with direct Tailwind utility classes instead of patching
+  Material's theme internals), icon-labeled sections in the travel form,
+  user avatar initials, and icon+text empty states across all three list
+  screens.
+
+Re-verified after every fix: all 4 backend test suites, all 68 Angular
+unit tests, and the full Playwright CRUD flow (users/travels/payments,
+including the Stripe iframe) all still pass clean.
+
 ## Next Step
 
-Phases 0-6 are done — every backend service now exists (git workflow,
-infra skeleton, API Gateway, Auth Service, Eureka discovery, User Service,
-Travel Service, Payment Service). On `feature/payment-service`, pending
-user add/commit/push + PR.
+Phases 0-7 are done — every backend service exists and the Angular Admin
+Dashboard is built, containerized, and live-verified end to end against the
+full running stack (see Phase 7 above for the real bugs found and fixed
+along the way: the Stripe Customer-attach bug in Phase 6 and the
+`LazyInitializationException` in Travel Service). Pending: user
+add/commit/push + PR + squash-merge of the `feature/admin-dashboard`
+branch.
 
-Stripe is fully live-verified with a real sandbox key. PayPal credentials
-are in `.env` and OAuth-verified live; full Vault flow verification is
-deferred to Phase 7 (needs a real browser-produced token, which requires
-PayPal business approval to create any other way).
+Stripe is fully live-verified, including through the real Elements card
+field in the browser. PayPal is OAuth-verified live; full Vault flow
+verification remains blocked on PayPal's own "Advanced Credit and Debit
+Card Payments" business approval (a review process on their end, not
+something fixable in this codebase) — noted as a known limitation rather
+than further deferred, since Phase 7's frontend was the last thing that
+could have unblocked it.
 
-Next: Phase 7 — Admin Dashboard (Angular). This is the last remaining
-backend-adjacent phase before moving into Phases 8+ (CI/CD, Ansible,
-logging, security hardening).
+Next: Phase 8 — CI/CD (Jenkins + SonarQube).
