@@ -176,7 +176,19 @@ services:
       discovery-server:
         condition: service_healthy
 
-  # Frontend/ is added once its Dockerfile exists (Phase 7 of Plan.md).
+  frontend:
+    build:
+      context: ./Frontend
+    container_name: traverse-frontend
+    restart: unless-stopped
+    environment:
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+    ports:
+      - "80:80"
+    networks:
+      - traverse-net
+    depends_on:
+      - gateway
 
 networks:
   traverse-net:

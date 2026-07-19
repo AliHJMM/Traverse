@@ -1,6 +1,7 @@
 package com.traverse.travel.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -22,4 +23,8 @@ public record UpdateTravelRequest(
         @Valid List<AccommodationRequest> accommodations,
         @Valid List<TransportationRequest> transportations
 ) {
+    @AssertTrue(message = "endDate must not be before startDate")
+    public boolean isDateRangeValid() {
+        return startDate == null || endDate == null || !endDate.isBefore(startDate);
+    }
 }

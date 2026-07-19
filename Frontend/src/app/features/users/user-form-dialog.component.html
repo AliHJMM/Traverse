@@ -1,0 +1,69 @@
+<div class="flex items-center gap-3 px-6 pt-6">
+  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+    <mat-icon>person</mat-icon>
+  </div>
+  <h2 mat-dialog-title class="!m-0 !p-0 !text-lg">{{ isEdit ? 'Edit user' : 'Add user' }}</h2>
+</div>
+
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <mat-dialog-content class="flex flex-col gap-1">
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Email</mat-label>
+      <input matInput type="email" formControlName="email" />
+      @if (form.controls.email.invalid && form.controls.email.touched) {
+        <mat-error>A valid email is required.</mat-error>
+      }
+    </mat-form-field>
+
+    @if (!isEdit) {
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Password</mat-label>
+        <input matInput type="password" formControlName="password" />
+        @if (form.controls.password.invalid && form.controls.password.touched) {
+          <mat-error>At least 8 characters.</mat-error>
+        }
+      </mat-form-field>
+    }
+
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Role</mat-label>
+      <mat-select formControlName="role">
+        <mat-option value="USER">USER</mat-option>
+        <mat-option value="ADMIN">ADMIN</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Full name</mat-label>
+      <input matInput formControlName="fullName" />
+      @if (form.controls.fullName.invalid && form.controls.fullName.touched) {
+        <mat-error>Full name is required.</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Phone</mat-label>
+      <input matInput formControlName="phone" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Address</mat-label>
+      <input matInput formControlName="address" />
+    </mat-form-field>
+
+    @if (isEdit) {
+      <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+    }
+
+    @if (errorMessage()) {
+      <p class="text-sm text-red-600">{{ errorMessage() }}</p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">Cancel</button>
+    <button mat-flat-button color="primary" type="submit" class="!rounded-lg" [disabled]="saving()">
+      {{ isEdit ? 'Save' : 'Create' }}
+    </button>
+  </mat-dialog-actions>
+</form>

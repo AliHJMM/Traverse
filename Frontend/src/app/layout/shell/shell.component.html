@@ -1,0 +1,64 @@
+<mat-toolbar class="sticky top-0 z-10 !h-16 !bg-white !text-slate-900 border-b border-slate-200 !px-4 sm:!px-6">
+  <div class="flex items-center gap-1.5 text-sm text-slate-400">
+    <span>Admin</span>
+    @if (sectionTitle()) {
+      <mat-icon class="!text-base !h-4 !w-4 !leading-none">chevron_right</mat-icon>
+      <span class="font-medium text-slate-700">{{ sectionTitle() }}</span>
+    }
+  </div>
+  <span class="flex-1"></span>
+  @if (currentUser$ | async; as user) {
+    <span class="mr-3 hidden text-sm text-slate-500 sm:inline">{{ user.email }}</span>
+  }
+  <button
+    mat-icon-button
+    (click)="logout()"
+    aria-label="Logout"
+    title="Logout"
+    class="!text-slate-500 hover:!text-slate-900"
+  >
+    <mat-icon>logout</mat-icon>
+  </button>
+</mat-toolbar>
+
+<mat-sidenav-container class="h-[calc(100vh-64px)] !bg-slate-50">
+  <mat-sidenav mode="side" opened class="!w-16 sm:!w-60 !border-r !border-slate-200 !bg-white">
+    <div class="flex items-center gap-2 px-4 py-5">
+      <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+        <mat-icon class="!text-lg">flight_takeoff</mat-icon>
+      </div>
+      <span class="hidden text-base font-semibold tracking-tight text-slate-900 sm:inline">Traverse</span>
+    </div>
+
+    <nav class="flex flex-col gap-1 px-2">
+      <a
+        routerLink="/users"
+        routerLinkActive="!bg-blue-50 !text-blue-700"
+        class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+      >
+        <mat-icon class="!text-xl">group</mat-icon>
+        <span class="hidden sm:inline">Users</span>
+      </a>
+      <a
+        routerLink="/travels"
+        routerLinkActive="!bg-blue-50 !text-blue-700"
+        class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+      >
+        <mat-icon class="!text-xl">flight</mat-icon>
+        <span class="hidden sm:inline">Travels</span>
+      </a>
+      <a
+        routerLink="/payments"
+        routerLinkActive="!bg-blue-50 !text-blue-700"
+        class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+      >
+        <mat-icon class="!text-xl">payment</mat-icon>
+        <span class="hidden sm:inline">Payments</span>
+      </a>
+    </nav>
+  </mat-sidenav>
+
+  <mat-sidenav-content class="box-border p-6 sm:p-8">
+    <router-outlet></router-outlet>
+  </mat-sidenav-content>
+</mat-sidenav-container>
