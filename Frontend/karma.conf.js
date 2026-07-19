@@ -1,4 +1,10 @@
-process.env.FIREFOX_BIN = process.env.FIREFOX_BIN || 'C:\\Program Files\\Mozilla Firefox\\firefox.exe';
+// Only needed on Windows -- karma-firefox-launcher can't find Firefox
+// there without an explicit path. On Linux (e.g. the Jenkins CI container,
+// which installs firefox-esr via apt) it auto-detects the binary correctly
+// on its own, and this same hardcoded Windows path would break it.
+if (process.platform === 'win32') {
+  process.env.FIREFOX_BIN = process.env.FIREFOX_BIN || 'C:\\Program Files\\Mozilla Firefox\\firefox.exe';
+}
 
 module.exports = function (config) {
   config.set({
