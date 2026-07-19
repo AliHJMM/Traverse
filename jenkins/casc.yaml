@@ -1,13 +1,15 @@
 jenkins:
   systemMessage: "Traverse CI"
   # Docker Desktop's VM here only has ~7.4GB total, shared across the whole
-  # already-running stack (14 containers) plus whatever this build spawns.
-  # The default 2 executors let the matrix stage's 6 backend builds run
-  # 3-wide in parallel, which was enough concurrent JVM/Maven memory
-  # pressure to get a build's own child process OOM-killed silently
-  # (Jenkins kept reporting "building" for a process that no longer
-  # existed). Pinning to 1 executor forces every parallel stage --
-  # the matrix cells, most notably -- to run one at a time instead.
+  # already-running stack (14 containers) plus whatever a build spawns.
+  # The backend build stage runs its 6 services in a genuine sequential
+  # loop (see Jenkinsfile) rather than a parallel/matrix stage specifically
+  # because of this constraint -- Declarative parallel branches aren't
+  # gated by executor count anyway (they're concurrent threads inside the
+  # one already-allocated node). Pinning to 1 executor here is a second,
+  # coarser safety net: it stops multiple separate BUILDS (e.g. two
+  # branches triggered close together) from stacking memory pressure on
+  # top of each other.
   numExecutors: 1
   securityRealm:
     local:
