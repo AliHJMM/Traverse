@@ -190,6 +190,79 @@ services:
     depends_on:
       - gateway
 
+  sonarqube-db:
+    image: postgres:16-alpine
+    container_name: traverse-sonarqube-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SONARQUBE_DB_USER}
+      POSTGRES_PASSWORD: ${SONARQUBE_DB_PASSWORD}
+      POSTGRES_DB: sonarqube
+    volumes:
+      - sonarqube_db_data:/var/lib/postgresql/data
+    networks:
+      - traverse-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SONARQUBE_DB_USER} -d sonarqube"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # SonarQube's bundled Elasticsearch needs a raised vm.max_map_count. On
+  # Docker Desktop/WSL2 this parameter isn't namespaced per-container -- a
+  # compose-level `sysctls:` override actually fails container creation
+  # outright ("not in a separate kernel namespace") rather than being
+  # silently ignored. It has to be raised on the WSL2 VM itself instead; see
+  # Plan.md Phase 8 for the one-time `wsl -d docker-desktop sysctl -w
+  # vm.max_map_count=262144` host command.
+  sonarqube:
+    image: sonarqube:community
+    container_name: traverse-sonarqube
+    restart: unless-stopped
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonarqube
+      SONAR_JDBC_USERNAME: ${SONARQUBE_DB_USER}
+      SONAR_JDBC_PASSWORD: ${SONARQUBE_DB_PASSWORD}
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - traverse-net
+    depends_on:
+      sonarqube-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+
+  # Docker CLI is available inside the container (mounted host socket) so the
+  # pipeline can `docker build`/`docker compose up` the real stack without a
+  # separate Docker-in-Docker daemon -- "docker-outside-of-docker".
+  jenkins:
+    build:
+      context: ./jenkins
+    container_name: traverse-jenkins
+    restart: unless-stopped
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      SONARQUBE_TOKEN: ${SONARQUBE_TOKEN}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+    ports:
+      - "8090:8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
+    networks:
+      - traverse-net
+    depends_on:
+      - sonarqube
+
 networks:
   traverse-net:
     driver: bridge
@@ -198,3 +271,8 @@ volumes:
   postgres_data:
   neo4j_data:
   neo4j_logs:
+  sonarqube_db_data:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  jenkins_home:
