@@ -1,5 +1,16 @@
 jenkins:
   systemMessage: "Traverse CI"
+  # Docker Desktop's VM here only has ~7.4GB total, shared across the whole
+  # already-running stack (14 containers) plus whatever a build spawns.
+  # The backend build stage runs its 6 services in a genuine sequential
+  # loop (see Jenkinsfile) rather than a parallel/matrix stage specifically
+  # because of this constraint -- Declarative parallel branches aren't
+  # gated by executor count anyway (they're concurrent threads inside the
+  # one already-allocated node). Pinning to 1 executor here is a second,
+  # coarser safety net: it stops multiple separate BUILDS (e.g. two
+  # branches triggered close together) from stacking memory pressure on
+  # top of each other.
+  numExecutors: 1
   securityRealm:
     local:
       allowsSignup: false
@@ -54,6 +65,14 @@ jobs:
                 repoOwner('AliHJMM')
                 repository('Traverse')
                 credentialsId('github-credentials')
+                traits {
+                  gitHubBranchDiscovery {
+                    strategyId(1)
+                  }
+                  gitHubPullRequestDiscovery {
+                    strategyId(1)
+                  }
+                }
               }
             }
           }
