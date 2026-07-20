@@ -402,6 +402,27 @@ PR(s) before the next starts.
         every conflicting file, verified no markers remained, then handed
         back to the user for the actual `git add`/commit/push (git
         operations stay theirs throughout this project).
+    13. **The deploy stage itself killed Jenkins mid-pipeline (build #13 on
+        `main`)**: `docker compose -p traverse up -d --build` with no
+        service list recreates *every* service in the compose file,
+        including `jenkins`/`sonarqube`/`sonarqube-db`, which live in the
+        same compose file as CI infra. Compose stops the old container
+        before starting its replacement — which killed the very Jenkins
+        process running the pipeline, mid-command. The pipeline paused for
+        the Jenkins restart, resumed, then failed
+        (`wrapper script does not seem to be touching the log file`,
+        `ERROR: script returned exit code -1`) since its shell wrapper
+        process had already been killed. Fixed by scoping the deploy
+        stage's `up -d --build` to an explicit list of the 9 actual
+        application services only. Also hit a real squash-merge divergence
+        while landing this: since every PR into `main` is squash-merged
+        (one flattened commit, no shared ancestry with the feature
+        branch), a second PR from the same long-lived `feature/jenkins-cicd`
+        branch conflicted against `main` in `jenkins/Jenkinsfile` even
+        though the tree content was identical — GitHub reported
+        `mergeable_state: dirty` until `main` was explicitly re-merged into
+        the feature branch (trivial conflict, one side was a strict
+        superset of the other) and repushed.
   - **Live-verified for real**: a full pipeline run on `feature/jenkins-cicd`
     went genuinely green end to end — all 6 backend services built and
     tested, all 68 Angular tests passed on the real Linux CI container,
@@ -413,6 +434,69 @@ PR(s) before the next starts.
     `continuous-integration/jenkins/branch`, alongside the existing
     no-force-push/no-deletion/PR-required/linear-history rules from
     Phase 0 — the slot that was reserved back then is now actually filled.
+  - **Deploy stage re-verified after the bug #13 fix (PR #15, merged into
+    `main`)**: a real `main` build (build #14) ran the corrected,
+    scoped `docker compose -p traverse up -d --build <9 app services>`
+    against the live stack — all 9 application containers recreated with
+    fresh images (confirmed via each container's new start time), while
+    `traverse-jenkins`/`traverse-sonarqube`/`traverse-sonarqube-db` stayed
+    up the entire time, completely untouched. Pipeline finished `SUCCESS`,
+    quality gate `OK`. Post-deploy smoke check: gateway `/actuator/health`
+    → 200, frontend → 200, discovery-server responsive. The deploy stage
+    is now confirmed safe to run repeatedly without taking down the CI
+    infrastructure that runs it.
+  - **CI/CD requirements audit pass (PR #16)**: went through the project's
+    own audit checklist against the live SonarQube dashboard, not just the
+    quality gate, and found three real gaps the gate doesn't catch because
+    its default condition only looks at new-code violations:
+    1. **Coverage reporting was completely disconnected** — all 7 projects
+       showed 0.0% coverage in SonarQube despite every test suite actually
+       passing. Root cause: no JaCoCo plugin in any of the 6 backend
+       `pom.xml`s, and no coverage reporter wired into `karma.conf.js` for
+       the Angular suite, so there was never a report for Sonar to read.
+       Fixed by adding `jacoco-maven-plugin` (bound to the `test` phase,
+       `prepare-agent` + `report` goals) to every backend service and
+       passing `-Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml`
+       in the Jenkinsfile's sonar loop; added `karma-coverage` (already a
+       devDependency, just never wired in) to `karma.conf.js` with an
+       `lcov` reporter, `ng test --code-coverage`, and
+       `-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info`. Verified
+       locally before pushing: real JaCoCo XML generated for all 6 backend
+       services, real `lcov.info` generated for the frontend (83% statement
+       coverage, 68/68 tests passing).
+    2. **4 backend services carried an open CRITICAL "CSRF disabled"
+       vulnerability** (`java:S4502`) in SonarQube, sitting unresolved.
+       This is Sonar correctly flagging `.csrf().disable()` — but it's a
+       deliberate, already-documented design choice (Phase 3: stateless
+       JWT in an httpOnly `SameSite=Strict` cookie, which is itself the
+       CSRF mitigation — there's no ambient session for a forged
+       cross-site request to ride on, so re-enabling Spring Security's
+       CSRF filter would add no real protection). Marked all 4 as
+       resolved/`WONTFIX` in SonarQube via the API with a justification
+       comment, rather than changing correct code to satisfy a scanner
+       that can't see the actual auth architecture.
+    3. **Frontend had 30 open "bugs"**: 29 were `Web:InputWithoutLabelCheck`
+       findings on `<input matInput>` elements that already sit inside a
+       `<mat-form-field>` with a sibling `<mat-label>` — Angular Material
+       wires a real `for`/`id` pair between them at render time, but
+       Sonar's static HTML analyzer only sees the raw template source and
+       doesn't know custom elements like `<mat-label>` resolve to a real
+       `<label>` at runtime. Fixed by adding an explicit `aria-label`
+       matching each field's visible label text across all 29 inputs
+       (login, users, travels, payments forms) — redundant with Material's
+       own wiring but makes the association explicit in the literal
+       markup, which is what the static check needed. The 30th was a real
+       bug: `payment-form-dialog.component.ts`'s `ngAfterViewInit` was
+       declared `async ... : Promise<void>`, violating the `AfterViewInit`
+       interface's `void` contract and meaning a rejected promise there
+       would become a silent unhandled rejection instead of surfacing.
+       Fixed to match the same `void this.mountStripeCardElement();`
+       pattern already used correctly elsewhere in the same file
+       (`onProviderChange`).
+  - Re-verified after all of the above: all 6 backend `mvn clean verify`
+    runs green with real JaCoCo output, all 68 Angular tests + `ng build`
+    green with real lcov output, pushed through the same PR → Jenkins
+    green → squash-merge → live `main` build flow as PR #15.
 
 - [ ] **Phase 9 — Ansible**
   - Idempotent playbooks for provisioning hosts and deploying containers
@@ -549,9 +633,13 @@ including the Stripe iframe) all still pass clean.
 Phases 0-8 are done. Every backend service exists, the Angular Admin
 Dashboard is built and live-verified, and Jenkins + SonarQube now run a
 genuinely green CI pipeline on every branch/PR with a real GitHub status
-check gating merges into `main` (see Phase 8 above for the twelve real
+check gating merges into `main` (see Phase 8 above for the thirteen real
 bugs found and fixed along the way — this phase was almost entirely live
 debugging against the actual running pipeline, not just writing config).
+The deploy stage's most dangerous bug (#13, killing Jenkins mid-pipeline)
+is fixed, merged to `main` via PR #15, and live-verified on a real `main`
+build — the whole stack now redeploys cleanly without touching the CI
+containers that run the pipeline.
 
 Stripe is fully live-verified, including through the real Elements card
 field in the browser. PayPal is OAuth-verified live; full Vault flow

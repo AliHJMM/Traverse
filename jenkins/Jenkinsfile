@@ -39,7 +39,7 @@ pipeline {
             steps {
                 dir('Frontend') {
                     sh 'npm ci'
-                    sh 'npx ng test --watch=false --browsers=FirefoxHeadless'
+                    sh 'npx ng test --watch=false --browsers=FirefoxHeadless --code-coverage'
                     sh 'npx ng build'
                 }
             }
@@ -51,7 +51,7 @@ pipeline {
                     script {
                         for (svc in BACKEND_SERVICES) {
                             dir("Backend/${svc}") {
-                                sh "mvn -B sonar:sonar -Dsonar.projectKey=traverse-${svc}"
+                                sh "mvn -B sonar:sonar -Dsonar.projectKey=traverse-${svc} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml"
                             }
                         }
                     }
@@ -62,7 +62,8 @@ pipeline {
                               -Dsonar.sources=src \
                               -Dsonar.tests=src \
                               -Dsonar.test.inclusions=**/*.spec.ts \
-                              -Dsonar.exclusions=**/*.spec.ts
+                              -Dsonar.exclusions=**/*.spec.ts \
+                              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
                         '''
                     }
                 }

@@ -9,7 +9,7 @@
   <mat-dialog-content class="flex flex-col gap-1">
     <mat-form-field appearance="outline" class="w-full">
       <mat-label>User ID</mat-label>
-      <input matInput type="number" formControlName="userId" />
+      <input matInput type="number" formControlName="userId" aria-label="User ID" />
       @if (form.controls.userId.invalid && form.controls.userId.touched) {
         <mat-error>A user id is required.</mat-error>
       }
@@ -34,7 +34,7 @@
     } @else {
       <mat-form-field appearance="outline" class="w-full">
         <mat-label>PayPal payment token</mat-label>
-        <input matInput formControlName="paypalToken" placeholder="From the PayPal JS SDK vaulting flow" />
+        <input matInput formControlName="paypalToken" placeholder="From the PayPal JS SDK vaulting flow" aria-label="PayPal payment token" />
       </mat-form-field>
     }
 

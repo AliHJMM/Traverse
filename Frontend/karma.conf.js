@@ -13,13 +13,19 @@ module.exports = function (config) {
     plugins: [
       require('karma-jasmine'),
       require('karma-firefox-launcher'),
+      require('karma-coverage'),
       require('@angular-devkit/build-angular/plugins/karma'),
     ],
     client: {
       jasmine: {},
       clearContext: false,
     },
-    reporters: ['progress'],
+    reporters: ['progress', 'coverage'],
+    coverageReporter: {
+      dir: require('path').join(__dirname, 'coverage'),
+      subdir: '.',
+      reporters: [{ type: 'lcov' }, { type: 'text-summary' }],
+    },
     port: 9876,
     colors: true,
     logLevel: config.LOG_INFO,
