@@ -317,9 +317,102 @@ PR(s) before the next starts.
     one expected, benign 401 from the initial `/api/auth/me`
     session-check that fires before any login cookie exists.
 
-- [ ] **Phase 8 — CI/CD**
-  - Jenkins pipeline: build → unit tests → SonarQube scan → (on main)
-    deploy. Pipeline runs on every PR; merge blocked until it's green.
+- [x] **Phase 8 — CI/CD**
+  - Jenkins (custom image: Maven, Node 20, headless Firefox, Docker CLI,
+    sonar-scanner, all baked in) + SonarQube (Community Edition, own
+    Postgres) added to `docker-compose.yml`. Jenkins provisioned entirely
+    declaratively via Configuration-as-Code (`jenkins/casc.yaml`) — admin
+    user, GitHub/SonarQube credentials, SonarQube server connection, and a
+    multibranch pipeline job (`jenkins/Jenkinsfile`) that discovers every
+    branch and PR via the GitHub API and reports a real commit status back
+    (`continuous-integration/jenkins/branch`) — no setup wizard, no manual
+    clicking. Trigger is a periodic scan (every 2 min) rather than a
+    GitHub webhook, since Jenkins has no public endpoint to receive one
+    on a local machine — deliberate choice over standing up ngrok, see
+    the discussion below.
+  - Pipeline: 6 backend services build+test sequentially → Angular
+    build+test (Firefox headless) → SonarQube analysis on all 7 modules →
+    quality gate wait (resolves via a SonarQube→Jenkins webhook) → deploy
+    (`docker compose up -d --build`, `main` only).
+  - **Real bugs found and fixed, in the order hit** (this phase was almost
+    entirely live debugging against the actual pipeline, not just writing
+    config):
+    1. `timestamps()` in `options {}` failed to parse — the Timestamper
+       plugin was never added to `plugins.txt`.
+    2. Every backend module failed to compile with "release version 21
+       not supported" — the Jenkins image was `jdk17`, but the project
+       targets Java 21. Switched to `jenkins/jenkins:lts-jdk21` and
+       pinned `JAVA_HOME`/`PATH` explicitly, since Debian's `maven`
+       package would otherwise pull in its own (older) default JDK
+       alongside the one Jenkins itself bundles.
+    3. Maven's local repo (`/root/.m2`) wasn't a named volume, so every
+       container recreate re-downloaded the entire dependency tree for
+       all 6 modules from scratch. Added a dedicated volume.
+    4. The `matrix` stage's 6 backend builds running 3-wide in parallel
+       pushed the Jenkins container to ~3.3GB / 44% of Docker Desktop's
+       entire 7.4GB VM allocation (shared with the other 13 already-running
+       containers) and silently OOM-killed a build's own child process —
+       Jenkins kept reporting "building" for a process that no longer
+       existed. Setting `numExecutors: 1` turned out not to fix this:
+       Declarative `parallel`/`matrix` branches run as concurrent threads
+       inside the one node the pipeline already allocated, not gated by
+       executor count at all. Fixed for real by rewriting the backend
+       stage as a genuine sequential loop.
+    5. The deploy stage's `docker compose up -d --build` would have run
+       from Jenkins's own git checkout, which never has `.env` (gitignored,
+       so a fresh clone can't produce it) — every `${VAR}` in
+       `docker-compose.yml` would have resolved empty. Fixed by bind-mounting
+       the real host project directory (`.:/host-project:ro`) into the
+       Jenkins container and pointing the deploy stage at it instead —
+       Jenkins already has `docker.sock` mounted for docker-outside-of-docker,
+       so this reaches the same Docker engine already running the real stack.
+    6. The GitHub branch source's Job DSL config had an empty `<traits/>`
+       block — `github {}` doesn't auto-add branch/PR discovery, it has to
+       be requested explicitly (`gitHubBranchDiscovery`/
+       `gitHubPullRequestDiscovery`), and the required-field combination
+       for `configuredByUrl`/`repositoryUrl`/`repoOwner`/`repository` took
+       several iterations of real validation-error messages to get right.
+    7. `karma.conf.js` hardcoded a **Windows** Firefox path
+       (`C:\Program Files\Mozilla Firefox\firefox.exe`) as its
+       `FIREFOX_BIN` fallback — correct for local dev on this machine,
+       fatal on the Linux Jenkins container. Fixed to only apply that
+       fallback on `process.platform === 'win32'`.
+    8. Docker Desktop's engine itself went unresponsive (500s on basic
+       `docker ps`/`docker info` calls) under the combined load of the
+       full 14-container stack plus 6 parallel JVMs — a real host resource
+       ceiling, not a config bug. Resolved by the user restarting Docker
+       Desktop; all state survived since everything lives in named volumes.
+    9. SonarQube's bundled Elasticsearch needs a raised `vm.max_map_count`;
+       on Docker Desktop/WSL2 this isn't namespaced per-container, so a
+       compose-level `sysctls:` override crashes container creation
+       outright rather than being ignored. Fixed at the host level instead
+       (`wsl -d docker-desktop sysctl -w vm.max_map_count=262144`) —
+       doesn't persist across a Docker Desktop restart, documented as a
+       one-time-per-restart step.
+    10. The `sonarqube:community` image doesn't ship `wget`, so its
+        Docker healthcheck always failed even though the service worked
+        fine — switched to `curl` with an actual status-body check.
+    11. A genuinely wedged Jenkins executor (queued build stuck
+        "waiting for next available executor" with nothing actually
+        running) needed a container restart to clear — state persisted
+        fine since it's all in the `jenkins_home` volume.
+    12. A real merge conflict between `main` (which had gotten an earlier,
+        pre-fix version of these same Jenkins files pushed directly) and
+        this branch's fixes — resolved by taking the newer/fixed side for
+        every conflicting file, verified no markers remained, then handed
+        back to the user for the actual `git add`/commit/push (git
+        operations stay theirs throughout this project).
+  - **Live-verified for real**: a full pipeline run on `feature/jenkins-cicd`
+    went genuinely green end to end — all 6 backend services built and
+    tested, all 68 Angular tests passed on the real Linux CI container,
+    SonarQube analyzed all 7 modules successfully, and the quality gate
+    resolved via the webhook in under a second (`Quality gate is 'OK'`).
+    Deploy correctly skipped (branch-gated to `main` only). GitHub branch
+    protection (a ruleset, not classic branch protection) was then updated
+    via the API to add a `required_status_checks` rule for
+    `continuous-integration/jenkins/branch`, alongside the existing
+    no-force-push/no-deletion/PR-required/linear-history rules from
+    Phase 0 — the slot that was reserved back then is now actually filled.
 
 - [ ] **Phase 9 — Ansible**
   - Idempotent playbooks for provisioning hosts and deploying containers
@@ -390,7 +483,7 @@ Traverse/
 ## 6. Constraints Checklist (from requirements)
 
 - [ ] PostgreSQL + Neo4j, both containerized
-- [ ] Jenkins CI/CD, SonarQube quality gate
+- [x] Jenkins CI/CD, SonarQube quality gate
 - [ ] Docker for all services, Ansible for provisioning/deployment
 - [ ] Centralized logging with request tracing
 - [ ] Admin Dashboard: user/travel/payment CRUD with cascading
@@ -399,7 +492,7 @@ Traverse/
 - [ ] JWT/OAuth2 auth on the dashboard, admin-only API access
 - [ ] Responsive UI, Chrome + Firefox compatible
 - [ ] Unit tests for every feature
-- [ ] All changes via PR, code-reviewed, CI-gated before merge into `main`
+- [x] All changes via PR, code-reviewed, CI-gated before merge into `main`
 - [ ] SSL/TLS (Let's Encrypt), Vault-managed secrets, least privilege,
       restricted DB/service network access, patch hygiene
 
@@ -453,20 +546,17 @@ including the Stripe iframe) all still pass clean.
 
 ## Next Step
 
-Phases 0-7 are done — every backend service exists and the Angular Admin
-Dashboard is built, containerized, and live-verified end to end against the
-full running stack (see Phase 7 above for the real bugs found and fixed
-along the way: the Stripe Customer-attach bug in Phase 6 and the
-`LazyInitializationException` in Travel Service). Pending: user
-add/commit/push + PR + squash-merge of the `feature/admin-dashboard`
-branch.
+Phases 0-8 are done. Every backend service exists, the Angular Admin
+Dashboard is built and live-verified, and Jenkins + SonarQube now run a
+genuinely green CI pipeline on every branch/PR with a real GitHub status
+check gating merges into `main` (see Phase 8 above for the twelve real
+bugs found and fixed along the way — this phase was almost entirely live
+debugging against the actual running pipeline, not just writing config).
 
 Stripe is fully live-verified, including through the real Elements card
 field in the browser. PayPal is OAuth-verified live; full Vault flow
 verification remains blocked on PayPal's own "Advanced Credit and Debit
 Card Payments" business approval (a review process on their end, not
-something fixable in this codebase) — noted as a known limitation rather
-than further deferred, since Phase 7's frontend was the last thing that
-could have unblocked it.
+something fixable in this codebase) — noted as a known limitation.
 
-Next: Phase 8 — CI/CD (Jenkins + SonarQube).
+Next: Phase 9 — Ansible (idempotent provisioning/deployment playbooks).
