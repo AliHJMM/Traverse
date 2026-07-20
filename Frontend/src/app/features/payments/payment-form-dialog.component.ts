@@ -54,8 +54,8 @@ export class PaymentFormDialogComponent implements AfterViewInit, OnDestroy {
     setDefault: [false],
   });
 
-  async ngAfterViewInit(): Promise<void> {
-    await this.mountStripeCardElement();
+  ngAfterViewInit(): void {
+    void this.mountStripeCardElement();
   }
 
   ngOnDestroy(): void {

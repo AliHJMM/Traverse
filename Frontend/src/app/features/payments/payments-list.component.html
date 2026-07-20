@@ -6,7 +6,7 @@
   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
     <mat-form-field appearance="outline" class="w-full sm:w-40" subscriptSizing="dynamic">
       <mat-label>Filter by user ID</mat-label>
-      <input matInput type="number" [(ngModel)]="userIdFilter" (ngModelChange)="reload()" />
+      <input matInput type="number" [(ngModel)]="userIdFilter" (ngModelChange)="reload()" aria-label="Filter by user ID" />
     </mat-form-field>
     <button mat-flat-button color="primary" (click)="openCreateDialog()" class="!rounded-lg w-full sm:w-auto">
       <mat-icon>add</mat-icon>
