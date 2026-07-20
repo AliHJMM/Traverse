@@ -93,13 +93,23 @@ pipeline {
         // new project's network/volumes, and collides with the already-
         // running same-named containers from the original "traverse"
         // project -- "Conflict. The container name ... is already in use".
+        //
+        // Only the actual application services are named here -- NOT
+        // jenkins/sonarqube/sonarqube-db, which live in this same compose
+        // file as CI infrastructure. A bare `docker compose up -d --build`
+        // recreates every service including jenkins itself, and compose
+        // stops the old container before starting the replacement -- which
+        // kills the very Jenkins process running this pipeline mid-command,
+        // leaving the recreation half-finished (confirmed live: build #13
+        // took down traverse-jenkins and traverse-discovery-server and
+        // never came back to finish starting their replacements).
         stage('Deploy (main only)') {
             when {
                 branch 'main'
             }
             steps {
                 dir('/host-project') {
-                    sh 'docker compose -p traverse up -d --build'
+                    sh 'docker compose -p traverse up -d --build postgres neo4j discovery-server gateway auth-service user-service travel-service payment-service frontend'
                 }
             }
         }
