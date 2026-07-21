@@ -1,0 +1,58 @@
+---
+- name: Assert .env exists before deploying
+  stat:
+    path: "{{ traverse_project_dir }}/.env"
+  register: dotenv_stat
+
+- name: Fail if .env is missing
+  fail:
+    msg: "{{ traverse_project_dir }}/.env does not exist -- cannot deploy without real config/secrets."
+  when: not dotenv_stat.stat.exists
+
+- name: Assemble docker compose scale flags and service list
+  set_fact:
+    compose_scale_flags: >-
+      {% for svc in scalable_services %}--scale {{ svc }}={{ service_replicas[svc] }} {% endfor %}
+    compose_all_services: "{{ (core_services + scalable_services) | join(' ') }}"
+
+- name: docker compose up -d --build (idempotent -- only recreates changed containers)
+  command: >-
+    docker compose -p {{ compose_project_name }} up -d --build
+    --wait --wait-timeout {{ compose_wait_timeout_seconds }}
+    {{ compose_scale_flags }}
+    {{ compose_all_services }}
+  args:
+    chdir: "{{ traverse_project_dir }}"
+  register: compose_up
+  changed_when: >-
+    'Recreated' in compose_up.stderr or 'Created' in compose_up.stderr
+    or ' Started' in compose_up.stderr
+
+- name: Show current container status per service
+  command: docker compose -p {{ compose_project_name }} ps --format "table {{ '{{' }}.Service{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}"
+  args:
+    chdir: "{{ traverse_project_dir }}"
+  changed_when: false
+  register: compose_ps
+
+- name: Report deployed service status
+  debug:
+    msg: "{{ compose_ps.stdout_lines }}"
+
+- name: Wait for the Gateway health endpoint
+  uri:
+    url: "{{ health_check_gateway_url }}"
+    status_code: 200
+  register: gateway_health
+  until: gateway_health.status == 200
+  retries: 15
+  delay: 5
+
+- name: Wait for the frontend to respond
+  uri:
+    url: "{{ health_check_frontend_url }}"
+    status_code: 200
+  register: frontend_health
+  until: frontend_health.status == 200
+  retries: 15
+  delay: 5

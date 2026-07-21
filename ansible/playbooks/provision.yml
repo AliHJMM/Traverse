@@ -1,0 +1,17 @@
+---
+# Host-level provisioning: run manually from a WSL Linux shell against the
+# Windows/Docker Desktop machine this project lives on. NOT run from inside
+# the Jenkins container -- Jenkins has no way back out to the Windows host's
+# WSL manager, and the vm.max_map_count fix in here is inherently host-
+# level, not something a container can do to itself.
+#
+# Usage:
+#   cd ansible && ansible-playbook playbooks/provision.yml
+#
+# Safe to re-run: every task here only changes something if it's not
+# already in the desired state.
+- name: Provision Traverse host prerequisites
+  hosts: traverse_host
+  gather_facts: false
+  roles:
+    - host_provision

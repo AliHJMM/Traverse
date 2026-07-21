@@ -1,0 +1,7 @@
+---
+# Convenience entrypoint for a full local run: provision the host, then
+# deploy. Jenkins only ever runs deploy.yml directly -- provisioning is a
+# manual, host-level, one-time-per-Docker-Desktop-restart step, not part of
+# the automated pipeline (see provision.yml).
+- import_playbook: provision.yml
+- import_playbook: deploy.yml

@@ -1,0 +1,65 @@
+---
+- name: Assert Docker CLI is available
+  command: docker --version
+  changed_when: false
+
+- name: Assert Docker Compose plugin is available
+  command: docker compose version
+  changed_when: false
+
+- name: Check whether .env exists
+  stat:
+    path: "{{ traverse_project_dir }}/.env"
+  register: dotenv_stat
+
+- name: Fail if .env is missing
+  fail:
+    msg: >-
+      {{ traverse_project_dir }}/.env does not exist. Copy .env.example to
+      .env and fill in real values. This playbook never creates or
+      overwrites it -- it holds live secrets (JWT_SECRET, DB passwords,
+      Stripe/PayPal keys).
+  when: not dotenv_stat.stat.exists
+
+- name: Read .env to check for unfilled placeholder values
+  slurp:
+    src: "{{ traverse_project_dir }}/.env"
+  register: dotenv_raw
+
+- name: Warn about any .env values still left as placeholders
+  vars:
+    dotenv_lines: "{{ (dotenv_raw.content | b64decode).splitlines() }}"
+    placeholder_lines: "{{ dotenv_lines | select('search', '=(change_me|not_configured)') | list }}"
+  debug:
+    msg: >-
+      .env still has placeholder value(s) for:
+      {{ placeholder_lines | map('regex_replace', '=.*$', '') | join(', ') }}
+      -- fill these in with real credentials before deploying.
+  when: placeholder_lines | length > 0
+
+# SonarQube's bundled Elasticsearch needs vm.max_map_count raised above the
+# Linux default (65530) -- see Plan.md Phase 8, bug #9. On Docker Desktop/
+# WSL2 this setting lives on the docker-desktop VM's own kernel, reached
+# here via Windows-interop `wsl.exe`, and does NOT persist across a Docker
+# Desktop restart -- previously a manual "remember to run this again" step,
+# now checked (and fixed if needed) on every provisioning run.
+- name: Read current vm.max_map_count on the docker-desktop WSL VM
+  command: wsl.exe -d docker-desktop sysctl -n vm.max_map_count
+  changed_when: false
+  failed_when: false
+  register: current_map_count
+
+- name: Raise vm.max_map_count on the docker-desktop WSL VM
+  command: wsl.exe -d docker-desktop sysctl -w vm.max_map_count={{ required_vm_max_map_count }}
+  when:
+    - current_map_count.rc == 0
+    - current_map_count.stdout | trim | int < required_vm_max_map_count
+
+- name: Note when the docker-desktop VM wasn't reachable
+  debug:
+    msg: >-
+      Could not reach the docker-desktop WSL VM via wsl.exe -- skipped the
+      vm.max_map_count check. Expected whenever this isn't running from a
+      WSL shell on the Windows machine hosting Docker Desktop (e.g. inside
+      the Jenkins container, which never runs this playbook anyway).
+  when: current_map_count.rc != 0

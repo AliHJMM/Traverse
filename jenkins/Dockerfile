@@ -29,6 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       maven firefox-esr \
     && rm -rf /var/lib/apt/lists/*
 
+# ansible-core only (not the full `ansible` metapackage) -- the deploy
+# playbook uses only builtin modules (command/stat/slurp/uri/debug), so the
+# bundled community collections would just be unused weight here.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ansible-core \
+    && rm -rf /var/lib/apt/lists/*
+
 # Node.js 20 (Angular build/test)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
