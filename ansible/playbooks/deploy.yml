@@ -1,0 +1,21 @@
+---
+# Deploys the application stack via Docker Compose, scaling the four
+# stateless backend services to their configured replica count for load
+# balancing/failover behind the Gateway/Eureka. Safe to re-run: `docker
+# compose up -d --build` only recreates containers whose image or config
+# actually changed.
+#
+# Deliberately excludes jenkins/sonarqube/sonarqube-db, which live in the
+# same docker-compose.yml as CI infrastructure -- deploying them here would
+# recreate the very Jenkins container this playbook might be running in
+# (see Plan.md Phase 8, bug #13, for what happened the one time that
+# actually shipped).
+#
+# Runs from two contexts (see ansible/README.md):
+#   - Jenkins' deploy stage (main branch only), against /host-project
+#   - manually from WSL Ubuntu, against the real project checkout
+- name: Deploy Traverse application stack
+  hosts: traverse_host
+  gather_facts: false
+  roles:
+    - compose_deploy

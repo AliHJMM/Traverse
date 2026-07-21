@@ -95,7 +95,10 @@ pipeline {
         // running same-named containers from the original "traverse"
         // project -- "Conflict. The container name ... is already in use".
         //
-        // Only the actual application services are named here -- NOT
+        // Delegates to the Ansible deploy playbook (Plan.md Phase 9)
+        // instead of a raw `docker compose` shell step. The playbook's own
+        // service list (ansible/playbooks/group_vars/all.yml) is the same
+        // deliberately-scoped set used here before -- NOT
         // jenkins/sonarqube/sonarqube-db, which live in this same compose
         // file as CI infrastructure. A bare `docker compose up -d --build`
         // recreates every service including jenkins itself, and compose
@@ -104,13 +107,27 @@ pipeline {
         // leaving the recreation half-finished (confirmed live: build #13
         // took down traverse-jenkins and traverse-discovery-server and
         // never came back to finish starting their replacements).
+        //
+        // health_check_*_url overrides point at the containers' own service
+        // names on traverse-net, not localhost -- "localhost" inside this
+        // Jenkins container means the Jenkins container itself, not the
+        // gateway/frontend containers the default (WSL/host-run) URLs
+        // assume.
+        //
+        // ANSIBLE_CONFIG is set explicitly rather than relying on Ansible's
+        // cwd-based auto-discovery of ansible.cfg -- see ansible/README.md
+        // for why (a real WSL/DrvFs quirk hit during Phase 9 verification).
         stage('Deploy (main only)') {
             when {
                 branch 'main'
             }
             steps {
-                dir('/host-project') {
-                    sh 'docker compose -p traverse up -d --build postgres neo4j discovery-server gateway auth-service user-service travel-service payment-service frontend'
+                dir('/host-project/ansible') {
+                    sh '''
+                        ANSIBLE_CONFIG=$(pwd)/ansible.cfg ansible-playbook playbooks/deploy.yml \
+                          -e health_check_gateway_url=http://gateway:8080/actuator/health \
+                          -e health_check_frontend_url=http://frontend:80/
+                    '''
                 }
             }
         }

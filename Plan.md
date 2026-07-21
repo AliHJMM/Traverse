@@ -498,9 +498,83 @@ PR(s) before the next starts.
     green with real lcov output, pushed through the same PR → Jenkins
     green → squash-merge → live `main` build flow as PR #15.
 
-- [ ] **Phase 9 — Ansible**
-  - Idempotent playbooks for provisioning hosts and deploying containers
-    consistently (safe to re-run without side effects).
+- [x] **Phase 9 — Ansible**
+  - `ansible/` — single-host project (everything runs as containers on one
+    Docker Desktop engine), so inventory is one `traverse_host` group
+    (`localhost`, `ansible_connection=local`) rather than remote SSH targets
+    — a deliberate, honest choice documented in `ansible/README.md` rather
+    than faking multi-host SSH for no functional reason. Kept as a real
+    inventory group (not hardcoded `hosts: localhost`) so pointing this at
+    an actual remote Docker host later is an inventory change, not a
+    playbook rewrite.
+  - Two playbooks: `provision.yml` (host prerequisites — manual, WSL only)
+    and `deploy.yml` (`docker compose up -d --build --wait`, scoped to the
+    9 application services only, same exclusion of `jenkins`/`sonarqube`/
+    `sonarqube-db` as Phase 8's deploy stage, for the same reason —
+    recreating CI infra would kill the pipeline running it). `deploy.yml`
+    now also scales the 4 stateless backend services to 2 replicas each
+    via `--scale` on every deploy (`group_vars/all.yml`), which is what
+    actually gives the "multiple replicas for load balancing/failover"
+    requirement a standing, automated home instead of the one-off manual
+    `--scale` flag used back in Phase 3.5's verification.
+  - **Integrated into Jenkins, not left standalone**: `jenkins/Dockerfile`
+    now installs `ansible-core`, and the Jenkinsfile's deploy stage
+    (`main` only) calls `ansible-playbook playbooks/deploy.yml` instead of
+    a raw `docker compose` shell line, with `-e health_check_gateway_url=
+    http://gateway:8080/...` / `-e health_check_frontend_url=
+    http://frontend:80/` overrides — "localhost" inside the Jenkins
+    container means the Jenkins container itself, not the gateway/frontend
+    containers, so the container-network service names have to be passed
+    explicitly for that context (the default group_vars values assume a
+    WSL/host run instead, where published ports on `localhost` are
+    correct).
+  - **Real bugs found during live verification** (not just written and
+    assumed correct):
+    1. `group_vars/all.yml` placed at the `ansible/` top level was silently
+       never loaded — Ansible only auto-discovers `group_vars/`/
+       `host_vars/` alongside the *playbook* file's directory or the
+       *inventory* file's directory, not an arbitrary parent. Every
+       variable came back "undefined." Fixed by moving it to
+       `ansible/playbooks/group_vars/all.yml`.
+    2. A real WSL/DrvFs quirk: running `ansible-playbook` from
+       `/mnt/c/Users/AliHa/Traverse/ansible` prints "Ansible is being run
+       in a world writable directory" and silently skips loading
+       `ansible.cfg` from the cwd entirely (DrvFs reports all files as
+       world-writable to WSL's Linux permission model, regardless of real
+       NTFS ACLs) — `roles_path`/`inventory` never applied, "role not
+       found" even though the file is right there. Fixed by setting
+       `ANSIBLE_CONFIG` explicitly (bypasses the cwd auto-discovery check),
+       both for manual WSL runs and in the Jenkinsfile's deploy stage.
+  - **Live-verified for real, three separate ways**:
+    1. `provision.yml` against the real host from WSL: Docker/Compose
+       presence confirmed, `.env` checked (no missing/placeholder values
+       at the time), `vm.max_map_count` found already at 262144 from an
+       earlier manual fix and correctly left untouched — no spurious
+       `changed`.
+    2. `deploy.yml` from WSL, run twice back-to-back: **first run** did a
+       real `docker compose up -d --build --scale ...` — confirmed via
+       `docker compose ps` that `auth-service`/`user-service`/
+       `travel-service`/`payment-service` each came up as 2 replicas,
+       while `jenkins`/`sonarqube`/`sonarqube-db` stayed completely
+       untouched (`Up 24 minutes` unchanged) the entire time; Gateway
+       health check retried ~6 times (~30s) while the new containers
+       finished booting/registering with Eureka, then passed, frontend
+       passed immediately. **Second run**: `changed=0` across every task —
+       no containers recreated, both health checks passed on the first
+       try with zero retries. Confirms "safe to re-run without side
+       effects" as an observed fact, not just an intended property.
+    3. Rebuilt `jenkins/Dockerfile` with `ansible-core` added, recreated
+       only the `traverse-jenkins` container (state intact via the
+       `jenkins_home` volume, Jenkins came back up clean), confirmed
+       `ansible-playbook [core 2.19.4]` runs inside it, then ran the
+       *exact* command the Jenkinsfile's deploy stage now runs — from
+       inside that real Jenkins container, against `/host-project`, with
+       the container-network health-check URL overrides — and it
+       correctly reached `http://gateway:8080/actuator/health` and
+       `http://frontend:80/` by container name (not localhost), while
+       `jenkins`/`sonarqube`/`sonarqube-db` again stayed untouched. This
+       exercises the actual code path the pipeline will run on the next
+       `main` build, without needing to merge first just to find out.
 
 - [ ] **Phase 10 — Centralized logging**
   - ELK or Loki stack; every service ships structured logs with correlation
@@ -552,7 +626,9 @@ Traverse/
 │   └── payment-service/  (Spring Boot + Spring Data JPA + Stripe SDK + PayPal REST)
 ├── Frontend/              (Angular Admin Dashboard — built last)
 ├── ansible/
-│   └── playbooks/
+│   ├── inventory/
+│   ├── playbooks/         (provision.yml, deploy.yml, site.yml, group_vars/)
+│   └── roles/             (host_provision, compose_deploy)
 ├── jenkins/
 │   └── Jenkinsfile(s)
 ├── docs/
@@ -566,9 +642,9 @@ Traverse/
 
 ## 6. Constraints Checklist (from requirements)
 
-- [ ] PostgreSQL + Neo4j, both containerized
+- [x] PostgreSQL + Neo4j, both containerized
 - [x] Jenkins CI/CD, SonarQube quality gate
-- [ ] Docker for all services, Ansible for provisioning/deployment
+- [x] Docker for all services, Ansible for provisioning/deployment
 - [ ] Centralized logging with request tracing
 - [ ] Admin Dashboard: user/travel/payment CRUD with cascading
       updates/deletes
@@ -647,4 +723,14 @@ verification remains blocked on PayPal's own "Advanced Credit and Debit
 Card Payments" business approval (a review process on their end, not
 something fixable in this codebase) — noted as a known limitation.
 
-Next: Phase 9 — Ansible (idempotent provisioning/deployment playbooks).
+Phase 9 (Ansible) is done: `ansible/provision.yml` + `deploy.yml` are
+live-verified idempotent (a real back-to-back WSL run showed `changed=0`
+on the second pass), the deploy playbook now bakes in the 2-replica-per-
+backend-service scaling that was previously only a manual `--scale` flag,
+and it's wired into Jenkins itself (not left standalone) — the deploy
+stage calls `ansible-playbook` instead of a raw `docker compose` line,
+verified by running that exact command from inside the real Jenkins
+container.
+
+Next: Phase 10 — Centralized logging (ELK or Loki, correlation IDs across
+services).

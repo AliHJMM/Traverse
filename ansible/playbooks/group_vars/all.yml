@@ -1,0 +1,50 @@
+---
+# Repo root, resolved relative to wherever these playbooks are actually
+# invoked from -- a WSL shell against /mnt/c/Users/AliHa/Traverse, or
+# Jenkins' deploy stage against the /host-project bind mount (see
+# ansible/README.md). Keeps every task path-agnostic across both contexts
+# instead of hardcoding either one.
+traverse_project_dir: "{{ (playbook_dir + '/../..') | realpath }}"
+
+compose_project_name: traverse
+
+# Services with a fixed container_name in docker-compose.yml -- infra +
+# singletons, never scaled.
+core_services:
+  - postgres
+  - neo4j
+  - discovery-server
+  - gateway
+  - frontend
+
+# Services deliberately left without a container_name in docker-compose.yml
+# so they can run multiple replicas behind the Gateway/Eureka (see Plan.md
+# Phase 3.5). Replica counts below are applied via `docker compose --scale`
+# on every deploy, not just as an ad-hoc manual flag.
+scalable_services:
+  - auth-service
+  - user-service
+  - travel-service
+  - payment-service
+
+service_replicas:
+  auth-service: 2
+  user-service: 2
+  travel-service: 2
+  payment-service: 2
+
+compose_wait_timeout_seconds: 240
+
+# Reachable from wherever the playbook runs. Defaults suit a WSL/host run
+# (published ports on localhost); Jenkins' deploy stage overrides both to
+# the containers' own service names, since "localhost" inside the Jenkins
+# container means the Jenkins container itself, not the host.
+health_check_gateway_url: "http://localhost:8080/actuator/health"
+health_check_frontend_url: "http://localhost:80/"
+
+# SonarQube's bundled Elasticsearch needs this raised above the Linux
+# default (65530) -- see Plan.md Phase 8, bug #9. On Docker Desktop/WSL2 it
+# lives on the docker-desktop VM's own kernel and does NOT persist across a
+# Docker Desktop restart, so provision.yml re-checks/re-applies it every run
+# rather than treating it as a one-time fact.
+required_vm_max_map_count: 262144
