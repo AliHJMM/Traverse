@@ -117,18 +117,29 @@ pipeline {
         // ANSIBLE_CONFIG is set explicitly rather than relying on Ansible's
         // cwd-based auto-discovery of ansible.cfg -- see ansible/README.md
         // for why (a real WSL/DrvFs quirk hit during Phase 9 verification).
+        //
+        // Deliberately NOT wrapped in a `dir('/host-project/ansible')` step
+        // -- Jenkins' `sh` step needs to create a sibling `<dir>@tmp`
+        // control directory next to wherever `dir()` points, to track the
+        // running shell process. `/host-project` is a read-only bind mount
+        // (see docker-compose.yml's jenkins service); `dir('/host-project')`
+        // is fine because its sibling `/host-project@tmp` falls outside the
+        // mount, but `dir('/host-project/ansible')` pushes the control dir
+        // to `/host-project/ansible@tmp`, still inside the read-only mount
+        // -- `FileSystemException: Read-only file system` (confirmed live,
+        // main build #16). `cd`-ing inside the shell script instead avoids
+        // Jenkins' own FilePath/control-dir logic entirely.
         stage('Deploy (main only)') {
             when {
                 branch 'main'
             }
             steps {
-                dir('/host-project/ansible') {
-                    sh '''
-                        ANSIBLE_CONFIG=$(pwd)/ansible.cfg ansible-playbook playbooks/deploy.yml \
-                          -e health_check_gateway_url=http://gateway:8080/actuator/health \
-                          -e health_check_frontend_url=http://frontend:80/
-                    '''
-                }
+                sh '''
+                    cd /host-project/ansible
+                    ANSIBLE_CONFIG=$(pwd)/ansible.cfg ansible-playbook playbooks/deploy.yml \
+                      -e health_check_gateway_url=http://gateway:8080/actuator/health \
+                      -e health_check_frontend_url=http://frontend:80/
+                '''
             }
         }
     }
