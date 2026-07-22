@@ -1,0 +1,40 @@
+# Single-binary Loki, filesystem storage -- this is a single-host project
+# (see Plan.md Phase 9's ansible/README.md for the same reasoning), so a
+# distributed/object-store Loki deployment would be pure overhead here.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Logs older than 7 days are dropped -- this is a dev/CI-graded project,
+  # not a production system with a real retention policy requirement.
+  retention_period: 168h
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem

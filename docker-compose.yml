@@ -272,6 +272,66 @@ services:
     depends_on:
       - sonarqube
 
+  # Single-binary Loki (filesystem storage) -- centralized log storage/query
+  # engine. See Plan.md Phase 10 for why Loki over ELK: much lighter than a
+  # second Elasticsearch on a host that already runs one for SonarQube (see
+  # Phase 8 bug #9), which mattered given the real memory/CPU pressure hit
+  # during Phase 9.
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: traverse-loki
+    restart: unless-stopped
+    volumes:
+      - ./logging/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - traverse-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auto-discovers every container on this Docker engine via the mounted
+  # docker.sock (docker-outside-of-docker, same approach Jenkins already
+  # uses) and ships their stdout logs to Loki -- no per-service config
+  # needed, new services/replicas are picked up automatically.
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: traverse-promtail
+    restart: unless-stopped
+    volumes:
+      - ./logging/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - traverse-net
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: traverse-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./logging/grafana-provisioning-datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - traverse-net
+    depends_on:
+      loki:
+        condition: service_healthy
+
 networks:
   traverse-net:
     driver: bridge
@@ -286,3 +346,5 @@ volumes:
   sonarqube_logs:
   jenkins_home:
   jenkins_maven_repo:
+  loki_data:
+  grafana_data:

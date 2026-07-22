@@ -1,5 +1,6 @@
 package com.traverse.auth.config;
 
+import com.traverse.auth.logging.CorrelationIdFilter;
 import com.traverse.auth.security.JwtCookieAuthenticationFilter;
 import com.traverse.auth.service.JwtService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -38,7 +39,8 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(
                         (request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))
                 .addFilterBefore(new JwtCookieAuthenticationFilter(jwtService, cookieName),
-                        UsernamePasswordAuthenticationFilter.class);
+                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new CorrelationIdFilter(), JwtCookieAuthenticationFilter.class);
 
         return http.build();
     }

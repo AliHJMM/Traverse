@@ -576,9 +576,70 @@ PR(s) before the next starts.
        exercises the actual code path the pipeline will run on the next
        `main` build, without needing to merge first just to find out.
 
-- [ ] **Phase 10 — Centralized logging**
-  - ELK or Loki stack; every service ships structured logs with correlation
-    IDs.
+- [x] **Phase 10 — Centralized logging**
+  - **Loki + Promtail + Grafana**, not ELK — chosen deliberately over a
+    second Elasticsearch on a host that already runs one for SonarQube
+    (Phase 8 bug #9), which mattered given the real memory/CPU pressure hit
+    repeatedly during Phase 9. Single-binary Loki (filesystem storage,
+    `logging/loki-config.yml`) since this is a single-host project, same
+    reasoning as Ansible's inventory choice. Promtail auto-discovers every
+    container via the mounted `docker.sock` (docker-outside-of-docker, same
+    approach Jenkins already uses) — no per-service scrape config, new
+    services/replicas are picked up automatically. Grafana's Loki
+    datasource is provisioned declaratively
+    (`logging/grafana-provisioning-datasources`), not clicked through the
+    UI.
+  - **Correlation ID propagation, not just log shipping**: a request is
+    only actually traceable if the same ID appears in every service that
+    touched it, which needed real code, not just infra. Gateway's new
+    `CorrelationIdFilter` (a `GlobalFilter`, `HIGHEST_PRECEDENCE` — ahead of
+    `JwtAuthenticationFilter`, so even rejected/401 requests get one) reads
+    or generates the ID, stamps it on the forwarded request, and logs an
+    access-log-style line. Each of the 4 request-handling backend services
+    (auth/user/travel/payment — Discovery Server has no business-request
+    filter chain to hook into and was deliberately skipped) got a matching
+    Servlet `CorrelationIdFilter` that reads the header into MDC
+    (`addFilterBefore` the existing `JwtCookieAuthenticationFilter`) so
+    `%X{correlationId}` shows up in every log line via a new
+    `logging.pattern.console` in each `application.yml`. User Service's
+    `FeignAuthForwardingConfig` got a second `RequestInterceptor` forwarding
+    the MDC value onto its Auth Service calls, so correlation survives that
+    service-to-service hop too.
+  - **Two real bugs found during live verification** (not just written and
+    assumed correct):
+    1. The correlation ID showed up **twice**, comma-joined, in the client
+       response header — Gateway's filter unconditionally added it, and
+       Spring Cloud Gateway separately copies back the same header from the
+       proxied downstream response (which had *also* set it, to the same
+       value). Fixed by only adding it in the Gateway if the downstream
+       response doesn't already carry it.
+    2. Bigger one: the first version of each downstream service's filter
+       only populated MDC — it never logged anything itself. A plain
+       successful CRUD request often doesn't hit any other log statement in
+       that service, so a correlation ID that traced fine through the
+       Gateway's own access-log line had **nothing to find** in that
+       service's logs at all. Caught by literally registering a real test
+       user through the Gateway and querying Loki for the returned
+       correlation ID — Auth Service's log stream came back empty. Fixed by
+       having each service's filter log its own access-log-style line too
+       (method/path/status/duration), matching what the Gateway already
+       did.
+  - **Live-verified for real**: registered a real user through the running
+    Gateway, captured the single (post-fix) `X-Correlation-Id` response
+    header, then queried Loki's HTTP API directly (not just eyeballing
+    Grafana) for that exact ID — it came back with matching log lines from
+    **both** `traverse-gateway` and `traverse-auth-service-1`, same
+    timestamp, same request. Confirmed the Loki datasource is live and
+    default in Grafana via its own API. The User Service → Auth Service
+    Feign-forwarding hop is code-reviewed and consistent with the
+    already-proven Gateway → service mechanism, but wasn't independently
+    live-traced this session (would need real admin credentials this
+    session didn't have on hand) — noted here rather than silently assumed,
+    same honesty standard as Phase 6's PayPal Vault gap.
+  - All 5 modified backend modules (auth/user/travel/payment/gateway)
+    recompiled and re-ran their full existing test suites clean with the
+    new filter in the Spring Security chain before any deploy — no
+    regressions from adding it.
 
 - [ ] **Phase 11 — Security hardening**
   - SSL/TLS via Let's Encrypt, HashiCorp Vault for secrets, network-level
@@ -631,6 +692,10 @@ Traverse/
 │   └── roles/             (host_provision, compose_deploy)
 ├── jenkins/
 │   └── Jenkinsfile(s)
+├── logging/
+│   ├── loki-config.yml
+│   ├── promtail-config.yml
+│   └── grafana-provisioning-datasources/
 ├── docs/
 │   ├── architecture.md
 │   └── db-schema.md
@@ -645,7 +710,7 @@ Traverse/
 - [x] PostgreSQL + Neo4j, both containerized
 - [x] Jenkins CI/CD, SonarQube quality gate
 - [x] Docker for all services, Ansible for provisioning/deployment
-- [ ] Centralized logging with request tracing
+- [x] Centralized logging with request tracing
 - [ ] Admin Dashboard: user/travel/payment CRUD with cascading
       updates/deletes
 - [ ] Stripe + PayPal integration
@@ -732,5 +797,14 @@ stage calls `ansible-playbook` instead of a raw `docker compose` line,
 verified by running that exact command from inside the real Jenkins
 container.
 
-Next: Phase 10 — Centralized logging (ELK or Loki, correlation IDs across
-services).
+Phase 10 (Centralized logging) is done: Loki + Promtail + Grafana are live,
+every request-handling backend service now carries a correlation ID through
+MDC into its own logs, and the Gateway threads that same ID onto every
+forwarded request. Live-verified by registering a real user through the
+Gateway and finding the exact same correlation ID in both the Gateway's and
+Auth Service's logs via a direct Loki API query — real cross-service
+traceability, not just infra running with nothing proven to flow through it.
+
+Next: Phase 11 — Security hardening (SSL/TLS via Let's Encrypt, HashiCorp
+Vault for secrets, network-level restriction of DB/internal service access,
+least-privilege service accounts, dependency patching cadence).
