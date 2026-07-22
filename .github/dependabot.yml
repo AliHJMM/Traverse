@@ -4,65 +4,164 @@
 # not a written policy nobody follows. Each PR still goes through the same
 # Jenkins pipeline (build/test/SonarQube/quality gate) as any other PR
 # before it can merge.
+#
+# Every entry caps itself two ways so this never floods the single Jenkins
+# executor again (it once opened 47 simultaneous PRs, one per dependency,
+# and every one queued a build):
+#   - open-pull-requests-limit: 5   -- at most 5 open PRs per entry
+#   - groups: minor + patch bumps are bundled into ONE PR per entry, so a
+#     week's routine updates land as a handful of grouped PRs instead of
+#     dozens. Major bumps still come as individual PRs (they need careful
+#     review anyway).
 version: 2
 updates:
   - package-ecosystem: "maven"
     directory: "/Backend/discovery-server"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "maven"
     directory: "/Backend/gateway"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "maven"
     directory: "/Backend/auth-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "maven"
     directory: "/Backend/user-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "maven"
     directory: "/Backend/travel-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "maven"
     directory: "/Backend/payment-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "npm"
     directory: "/Frontend"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/Backend/discovery-server"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/Backend/gateway"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/Backend/auth-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/Backend/user-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/Backend/travel-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/Backend/payment-service"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/Frontend"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
   - package-ecosystem: "docker"
     directory: "/jenkins"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"

@@ -34,3 +34,4 @@ Thumbs.db
 certs/*.crt
 certs/*.key
 !certs/README.md
+Frontend/certs/

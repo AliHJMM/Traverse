@@ -34,3 +34,22 @@
       {{ 'Generated a new self-signed cert (missing or expiring within 30 days).'
          if (not tls_cert_stat.stat.exists or tls_cert_checkend.rc != 0)
          else 'Existing cert is still valid for 30+ days -- left untouched.' }}
+
+# Staged into the Frontend build context so Frontend/Dockerfile can COPY
+# it at build time instead of docker-compose runtime-bind-mounting it --
+# see docker-compose.yml's frontend service and Frontend/Dockerfile for
+# why a runtime bind mount breaks when Jenkins triggers the deploy
+# (confirmed live: main build #20, "no such file" from nginx because the
+# relative ./certs path resolved against Jenkins' own /host-project view,
+# a path the real Docker daemon has no knowledge of). Always re-copied
+# (regardless of whether a new cert was just generated above) so
+# Frontend/certs/ never silently drifts from the real one in certs/.
+- name: Stage the cert into the Frontend build context
+  copy:
+    src: "{{ traverse_project_dir }}/certs/{{ item }}"
+    dest: "{{ traverse_project_dir }}/Frontend/certs/{{ item }}"
+    mode: "0644"
+    remote_src: true
+  loop:
+    - traverse.crt
+    - traverse.key
