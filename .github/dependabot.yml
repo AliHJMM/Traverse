@@ -1,0 +1,68 @@
+# Patching cadence (Plan.md Phase 11): weekly automated PRs for outdated
+# dependencies across every ecosystem in this repo, so "regular patching
+# and updates for dependencies and containers" is an enforced mechanism,
+# not a written policy nobody follows. Each PR still goes through the same
+# Jenkins pipeline (build/test/SonarQube/quality gate) as any other PR
+# before it can merge.
+version: 2
+updates:
+  - package-ecosystem: "maven"
+    directory: "/Backend/discovery-server"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "maven"
+    directory: "/Backend/gateway"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "maven"
+    directory: "/Backend/auth-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "maven"
+    directory: "/Backend/user-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "maven"
+    directory: "/Backend/travel-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "maven"
+    directory: "/Backend/payment-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/Frontend"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/Backend/discovery-server"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/Backend/gateway"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/Backend/auth-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/Backend/user-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/Backend/travel-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/Backend/payment-service"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/Frontend"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/jenkins"
+    schedule:
+      interval: "weekly"

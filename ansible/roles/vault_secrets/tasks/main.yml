@@ -1,0 +1,103 @@
+---
+# Vault (dev mode, in-memory storage -- see docker-compose.yml's vault
+# service) is the source of truth for the secret subset of .env
+# (vault_managed_secret_keys in group_vars/all.yml); everything else in
+# .env (usernames, ports, non-secret config) is left completely untouched.
+#
+# In-memory storage means Vault's data doesn't survive a container
+# restart -- this role treats .env on the host disk as a durable cache and
+# self-heals: if Vault comes up empty (fresh container), it's reseeded
+# from whatever .env last had; if Vault already has data (someone ran
+# `vault kv put` directly to rotate a secret), .env is updated FROM Vault
+# instead. Either way, after this role runs, Vault and .env agree.
+- name: Assert .env exists before touching Vault
+  stat:
+    path: "{{ traverse_project_dir }}/.env"
+  register: dotenv_stat
+
+- name: Fail if .env is missing
+  fail:
+    msg: "{{ traverse_project_dir }}/.env does not exist -- nothing to seed Vault from, and nowhere to write secrets back to."
+  when: not dotenv_stat.stat.exists
+
+- name: Read current .env content
+  slurp:
+    src: "{{ traverse_project_dir }}/.env"
+  register: dotenv_raw
+  no_log: true
+
+# Runs before compose_deploy (see playbooks/deploy.yml's role order) --
+# this role needs to talk to Vault's own HTTP API before compose_deploy
+# gets around to starting it as part of the normal service list, so it
+# has to bring Vault up itself first. Idempotent/harmless if compose_deploy
+# later "starts" it again -- docker compose just sees nothing changed.
+- name: Bring up the Vault container (needed before its API can be reached)
+  command: docker compose -p {{ compose_project_name }} up -d --wait --wait-timeout 60 vault
+  args:
+    chdir: "{{ traverse_project_dir }}"
+  changed_when: >-
+    'Recreated' in vault_up.stderr or 'Created' in vault_up.stderr
+    or ' Started' in vault_up.stderr
+  register: vault_up
+
+- name: Parse .env into a key/value dict
+  set_fact:
+    # select (bare, default truthy test) drops the `[]` regex_findall
+    # returns for non-matching lines (comments/blanks) -- select('length')
+    # is wrong here: 'length' is a Jinja filter, not a test, and fails with
+    # KeyError: 'length' (caught during live verification).
+    dotenv_dict: "{{ dict(dotenv_lines | map('regex_findall', '^([A-Z_][A-Z0-9_]*)=(.*)$') | select | map('first')) }}"
+  vars:
+    dotenv_lines: "{{ (dotenv_raw.content | b64decode).splitlines() }}"
+  no_log: true
+
+- name: Check whether Vault is already seeded
+  uri:
+    url: "{{ vault_addr }}/v1/{{ vault_secret_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ dotenv_dict.VAULT_ROOT_TOKEN }}"
+    status_code: [200, 404]
+  register: vault_check
+  no_log: true
+
+# Only true the very first time this ever runs against a given Vault
+# instance (or after a container restart wipes dev-mode's in-memory
+# store) -- .env already has real values at that point, so this is a
+# migration, not a manual re-entry of every secret.
+- name: Seed Vault from the current .env
+  uri:
+    url: "{{ vault_addr }}/v1/{{ vault_secret_path }}"
+    method: POST
+    headers:
+      X-Vault-Token: "{{ dotenv_dict.VAULT_ROOT_TOKEN }}"
+    body_format: json
+    body:
+      data: "{{ dotenv_dict | dict2items | selectattr('key', 'in', vault_managed_secret_keys) | items2dict }}"
+    status_code: [200, 204]
+  when: vault_check.status == 404
+  no_log: true
+
+- name: Fetch current secrets from Vault
+  uri:
+    url: "{{ vault_addr }}/v1/{{ vault_secret_path }}"
+    method: GET
+    headers:
+      X-Vault-Token: "{{ dotenv_dict.VAULT_ROOT_TOKEN }}"
+    status_code: 200
+  register: vault_fetch
+  no_log: true
+
+# lineinfile per key (not a full .env rewrite) so every comment and every
+# non-secret line in .env survives untouched -- only the specific
+# KEY=value lines Vault manages get updated, and only when they actually
+# differ.
+- name: Sync each Vault-managed secret into .env
+  lineinfile:
+    path: "{{ traverse_project_dir }}/.env"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+  loop: "{{ vault_fetch.json.data.data | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  no_log: true

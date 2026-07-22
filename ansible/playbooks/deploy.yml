@@ -14,8 +14,14 @@
 # Runs from two contexts (see ansible/README.md):
 #   - Jenkins' deploy stage (main branch only), against /host-project
 #   - manually from WSL Ubuntu, against the real project checkout
+#
+# tls_certs and vault_secrets run first: the frontend needs a cert to
+# mount before `docker compose up`, and compose_deploy needs the real
+# secrets written to .env before it runs (see Plan.md Phase 11).
 - name: Deploy Traverse application stack
   hosts: traverse_host
   gather_facts: false
   roles:
+    - tls_certs
+    - vault_secrets
     - compose_deploy

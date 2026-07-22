@@ -641,10 +641,77 @@ PR(s) before the next starts.
     new filter in the Spring Security chain before any deploy — no
     regressions from adding it.
 
-- [ ] **Phase 11 — Security hardening**
-  - SSL/TLS via Let's Encrypt, HashiCorp Vault for secrets, network-level
-    restriction of DB/internal service access, least-privilege service
-    accounts, dependency patching cadence.
+- [x] **Phase 11 — Security hardening**
+  - **SSL/TLS**: self-signed cert, not Let's Encrypt — Let's Encrypt can
+    only issue for a real, publicly-resolvable domain, which a local
+    Docker Desktop deployment doesn't have. A deliberate, documented choice
+    (`certs/README.md`) rather than faking it or skipping TLS entirely,
+    structured so a real Let's Encrypt cert drops in later as a volume-mount
+    change, not a redesign. `Frontend/nginx.conf` now 301-redirects all
+    `:80` traffic to `:443`; nothing is ever served over plain HTTP.
+    `COOKIE_SECURE` flipped to `true` now that real HTTPS exists.
+  - **HashiCorp Vault** (dev mode — in-memory storage, fixed root token;
+    an honest, documented trade-off, not treated as production-grade) is
+    now the source of truth for 13 real secrets (JWT secret, DB passwords,
+    Stripe/PayPal keys, CI tool admin passwords/tokens) — not per-service
+    Spring Cloud Vault integration, but Ansible itself: the new
+    `vault_secrets` role reads them from Vault and syncs them into `.env`
+    before every deploy, via `lineinfile` per key so every comment and
+    every non-secret line in `.env` survives untouched. Self-healing across
+    a Docker Desktop restart (which wipes dev-mode's in-memory store): if
+    Vault comes up empty, it's reseeded *from* `.env`'s last-known values;
+    otherwise `.env` is updated *from* Vault.
+  - **Network restriction**: `postgres` and `neo4j` lost their host port
+    mappings entirely — reachable only from other containers on
+    `traverse-net`, confirmed via a real `Test-NetConnection` from the host
+    (`TcpTestSucceeded: False` on both 5432 and 7687 post-deploy). Vault's
+    port stays published deliberately: its security model is
+    authentication (every read needs a valid token), not network
+    isolation, so host access doesn't violate "internal network or
+    authenticated endpoints only" — the requirement explicitly allows
+    either.
+  - **Least privilege**: all 6 backend Dockerfiles (discovery-server,
+    gateway, auth/user/travel/payment-service) previously ran as root by
+    default (no `USER` directive) — now run as a dedicated non-root `app`
+    user, confirmed via `docker exec ... whoami` returning `app` on the
+    real running containers. Postgres/Neo4j/nginx already run as non-root
+    by default in their official images, no change needed there. Full
+    per-service Postgres role scoping (each backend service authenticating
+    as its own least-privilege DB role instead of one shared admin
+    account) is a known, documented limitation deferred past this session
+    — noted honestly rather than silently skipped, same standard as
+    Phase 6's PayPal Vault gap.
+  - **Patching cadence**: `.github/dependabot.yml` — weekly automated PRs
+    across all 6 Maven modules, the Angular frontend, all 7 Dockerfiles,
+    and the Jenkins image, each still gated through the same Jenkins
+    pipeline (build/test/SonarQube/quality gate) as any other PR. A real
+    enforced mechanism, not a written policy nobody follows.
+  - **Real bugs found during live verification**:
+    1. `select('length')` in the new `vault_secrets` role's `.env`-parsing
+       task — `length` is a Jinja *filter*, not a *test*; using it as a
+       test threw `KeyError: 'length'`. Fixed to bare `select` (default
+       truthy test), since `regex_findall` already returns `[]` (falsy)
+       for non-matching lines.
+    2. A `docker compose up -d --build` mid-run failure (`ERRNO2: No such
+       file or directory`) during the very first full live-deploy attempt
+       — didn't reproduce on an immediate clean re-run (which succeeded
+       fully, `exit 0`), and all containers from the "failed" run had
+       actually come up fine underneath. Consistent with the same
+       Docker-Desktop-under-host-pressure pattern hit repeatedly earlier
+       this session (Phase 8 bug #8, and a real Docker Desktop restart
+       needed mid-Phase-11 after the engine returned 500s on basic `docker
+       ps` calls) rather than a logic bug — noted honestly as "not fully
+       explained, resolved on retry" instead of claiming a root cause I
+       don't actually have evidence for.
+  - **Live-verified for real, not just written**: full `ansible-playbook
+    playbooks/deploy.yml` run end-to-end (cert generation, Vault
+    seed-then-sync, scoped `docker compose up`) completed clean twice in a
+    row (second run correctly idempotent — cert and Vault-seed steps both
+    skipped, only `auth-service` recreated to pick up a `.env` change).
+    Registered a real user and logged in through `https://localhost` (not
+    a mocked request) — got back a real `Set-Cookie` header reading
+    `Secure; HttpOnly; SameSite=Strict`, and Vault's own API confirmed all
+    13 managed secrets present with real values matching `.env`.
 
 - [ ] **Phase 12 — Testing**
   - Unit tests per feature (required for CI to pass); integration/E2E tests
@@ -689,13 +756,16 @@ Traverse/
 ├── ansible/
 │   ├── inventory/
 │   ├── playbooks/         (provision.yml, deploy.yml, site.yml, group_vars/)
-│   └── roles/             (host_provision, compose_deploy)
+│   └── roles/             (host_provision, tls_certs, vault_secrets, compose_deploy)
 ├── jenkins/
 │   └── Jenkinsfile(s)
 ├── logging/
 │   ├── loki-config.yml
 │   ├── promtail-config.yml
 │   └── grafana-provisioning-datasources/
+├── certs/                 (Ansible-generated self-signed TLS cert, gitignored)
+├── .github/
+│   └── dependabot.yml
 ├── docs/
 │   ├── architecture.md
 │   └── db-schema.md
@@ -718,8 +788,9 @@ Traverse/
 - [ ] Responsive UI, Chrome + Firefox compatible
 - [ ] Unit tests for every feature
 - [x] All changes via PR, code-reviewed, CI-gated before merge into `main`
-- [ ] SSL/TLS (Let's Encrypt), Vault-managed secrets, least privilege,
-      restricted DB/service network access, patch hygiene
+- [x] SSL/TLS (self-signed, documented Let's Encrypt path), Vault-managed
+      secrets, least privilege, restricted DB/service network access,
+      patch hygiene
 
 ---
 
@@ -805,6 +876,17 @@ Gateway and finding the exact same correlation ID in both the Gateway's and
 Auth Service's logs via a direct Loki API query — real cross-service
 traceability, not just infra running with nothing proven to flow through it.
 
-Next: Phase 11 — Security hardening (SSL/TLS via Let's Encrypt, HashiCorp
-Vault for secrets, network-level restriction of DB/internal service access,
-least-privilege service accounts, dependency patching cadence).
+Phase 11 (Security hardening) is done: the frontend serves real HTTPS
+(self-signed, documented Let's Encrypt path for a real domain later),
+HashiCorp Vault is the live source of truth for 13 real secrets synced into
+`.env` by a new Ansible role on every deploy, Postgres/Neo4j lost their host
+port mappings entirely (confirmed genuinely unreachable from the host), all
+6 backend Dockerfiles now run as a non-root user, and Dependabot enforces a
+real weekly patching cadence across every ecosystem in the repo. Live-verified
+end-to-end: a real login through `https://localhost` came back with a
+`Secure; HttpOnly; SameSite=Strict` cookie, and Vault's own API confirmed all
+13 managed secrets present. Full per-service Postgres role scoping is a
+known, documented limitation deferred past this session.
+
+Next: Phase 12 — Testing (unit tests per feature already exist and run in
+CI; integration/E2E tests are the remaining bonus pass).

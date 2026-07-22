@@ -1,0 +1,36 @@
+---
+# Idempotent self-signed TLS cert generation for the frontend's nginx (see
+# certs/README.md for why self-signed rather than Let's Encrypt). Only
+# regenerates when the cert is actually missing or expiring soon -- a
+# fresh, valid cert on every deploy would force browsers to re-trust it and
+# invalidate any previously-issued sessions for no reason.
+- name: Check whether a TLS cert already exists
+  stat:
+    path: "{{ traverse_project_dir }}/certs/traverse.crt"
+  register: tls_cert_stat
+
+- name: Check whether the existing cert expires within 30 days
+  command: openssl x509 -checkend 2592000 -noout -in "{{ traverse_project_dir }}/certs/traverse.crt"
+  register: tls_cert_checkend
+  changed_when: false
+  failed_when: false
+  when: tls_cert_stat.stat.exists
+
+- name: Generate a self-signed TLS cert + key (only if missing or expiring soon)
+  command: >-
+    openssl req -x509 -nodes -newkey rsa:2048
+    -keyout {{ traverse_project_dir }}/certs/traverse.key
+    -out {{ traverse_project_dir }}/certs/traverse.crt
+    -days 365
+    -subj "/CN=localhost"
+    -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+  when: >-
+    not tls_cert_stat.stat.exists or
+    tls_cert_checkend.rc != 0
+
+- name: Report TLS cert status
+  debug:
+    msg: >-
+      {{ 'Generated a new self-signed cert (missing or expiring within 30 days).'
+         if (not tls_cert_stat.stat.exists or tls_cert_checkend.rc != 0)
+         else 'Existing cert is still valid for 30+ days -- left untouched.' }}
