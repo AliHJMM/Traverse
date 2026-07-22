@@ -5,6 +5,20 @@
 expiring within 30 days) and gitignored, same treatment as `.env`: they're
 either machine-generated or environment-specific, never committed.
 
+The same role also copies both files into `Frontend/certs/` (also
+gitignored) before every build — `Frontend/Dockerfile` `COPY`s them into
+the image at build time. That's deliberate, not incidental: a runtime
+bind-mount (`./certs:/etc/nginx/certs`) resolves relative to whatever
+process invokes `docker compose`, which is Jenkins' own `/host-project`
+view when the deploy is triggered from CI — a path the real Docker daemon
+(running on the actual host) has no knowledge of, since it only exists
+inside the Jenkins container's own mount namespace. A build context,
+unlike a runtime bind mount, gets tarred and sent to the daemon as a data
+stream, so it works identically regardless of which context triggers the
+build. Confirmed live: `main` build #20 hit exactly this — nginx failed to
+start with "no such file" for a cert that was genuinely sitting right
+there in `certs/`, just not at the path the daemon actually saw.
+
 ## Why self-signed, not Let's Encrypt
 
 Let's Encrypt can only issue a certificate for a real, publicly-resolvable
@@ -24,9 +38,9 @@ If this ever runs on a host with a real domain pointed at it:
    `privkey.pem` for that domain.
 2. Copy them into this directory as `traverse.crt` / `traverse.key` (or
    change the two `ssl_certificate*` paths in `Frontend/nginx.conf`).
-3. Nothing else changes — `docker-compose.yml`'s bind mount and nginx's TLS
-   config are already domain-agnostic.
+3. Rebuild the frontend (`docker compose up -d --build frontend`, or just
+   the next normal deploy) — nginx's TLS config is already domain-agnostic,
+   only the underlying cert files change.
 
-Renewal would then need certbot's usual cron/systemd-timer + an nginx
-reload, which isn't wired up here since it only applies once a real domain
-exists.
+Renewal would then need certbot's usual cron/systemd-timer + a rebuild,
+which isn't wired up here since it only applies once a real domain exists.
