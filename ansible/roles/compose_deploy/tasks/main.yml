@@ -52,6 +52,9 @@
   uri:
     url: "{{ health_check_frontend_url }}"
     status_code: 200
+    # Self-signed cert (Plan.md Phase 11 / certs/README.md) -- there's no
+    # CA chain for a real client to validate here by design.
+    validate_certs: false
   register: frontend_health
   until: frontend_health.status == 200
   retries: 15

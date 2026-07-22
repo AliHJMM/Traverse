@@ -13,6 +13,7 @@ compose_project_name: traverse
 core_services:
   - postgres
   - neo4j
+  - vault
   - discovery-server
   - gateway
   - frontend
@@ -40,7 +41,10 @@ compose_wait_timeout_seconds: 240
 # the containers' own service names, since "localhost" inside the Jenkins
 # container means the Jenkins container itself, not the host.
 health_check_gateway_url: "http://localhost:8080/actuator/health"
-health_check_frontend_url: "http://localhost:80/"
+# https, not http -- the frontend 301-redirects :80 to :443 and only ever
+# serves over TLS (Plan.md Phase 11). The cert is self-signed, hence
+# validate_certs: false on this specific check in compose_deploy's tasks.
+health_check_frontend_url: "https://localhost:443/"
 
 # SonarQube's bundled Elasticsearch needs this raised above the Linux
 # default (65530) -- see Plan.md Phase 8, bug #9. On Docker Desktop/WSL2 it
@@ -48,3 +52,26 @@ health_check_frontend_url: "http://localhost:80/"
 # Docker Desktop restart, so provision.yml re-checks/re-applies it every run
 # rather than treating it as a one-time fact.
 required_vm_max_map_count: 262144
+
+# Vault (Plan.md Phase 11): source of truth for these specific secrets --
+# everything else in .env (usernames, ports, non-secret config) stays
+# wherever it already is, untouched. VAULT_ROOT_TOKEN itself is
+# deliberately excluded: it's needed to authenticate to Vault in the first
+# place, so it can't live inside Vault (same bootstrap-credential pattern
+# as JENKINS_ADMIN_PASSWORD).
+vault_addr: "http://localhost:8200"
+vault_secret_path: "secret/data/traverse"
+vault_managed_secret_keys:
+  - POSTGRES_PASSWORD
+  - NEO4J_PASSWORD
+  - JWT_SECRET
+  - STRIPE_SECRET_KEY
+  - STRIPE_PUBLISHABLE_KEY
+  - PAYPAL_CLIENT_ID
+  - PAYPAL_CLIENT_SECRET
+  - SONARQUBE_DB_PASSWORD
+  - SONARQUBE_ADMIN_PASSWORD
+  - GITHUB_TOKEN
+  - SONARQUBE_TOKEN
+  - JENKINS_ADMIN_PASSWORD
+  - GRAFANA_ADMIN_PASSWORD

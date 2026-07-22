@@ -138,7 +138,8 @@ pipeline {
                     cd /host-project/ansible
                     ANSIBLE_CONFIG=$(pwd)/ansible.cfg ansible-playbook playbooks/deploy.yml \
                       -e health_check_gateway_url=http://gateway:8080/actuator/health \
-                      -e health_check_frontend_url=http://frontend:80/
+                      -e health_check_frontend_url=https://frontend:443/ \
+                      -e vault_addr=http://vault:8200
                 '''
             }
         }

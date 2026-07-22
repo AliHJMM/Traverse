@@ -29,6 +29,8 @@ ansible/
 │   └── site.yml                 # provision.yml + deploy.yml, for a full local run
 └── roles/
     ├── host_provision/tasks/main.yml
+    ├── tls_certs/tasks/main.yml      # Phase 11
+    ├── vault_secrets/tasks/main.yml  # Phase 11
     └── compose_deploy/tasks/main.yml
 ```
 
@@ -97,19 +99,42 @@ never from Jenkins:
   "remember to run this again" step. Now it's just re-run as part of
   provisioning.
 
-**`deploy.yml`** (`roles/compose_deploy`) — runs `docker compose up -d
---build --wait`, scoped to the 9 application services only
-(`core_services` + `scalable_services` in `group_vars/all.yml`) —
-deliberately excluding `jenkins`/`sonarqube`/`sonarqube-db`, which live in
-the same `docker-compose.yml` as CI infrastructure (see Plan.md Phase 8,
-bug #13, for what happens when a deploy recreates the Jenkins container
-that's running the deploy). The four stateless backend services
-(auth/user/travel/payment) are scaled to their configured replica count
-(`service_replicas`, default 2 each) on every deploy via `--scale`, not
-just as an ad-hoc manual flag — this is what actually gives the "multiple
-replicas for load balancing/failover" requirement a standing, automated
-home instead of a one-off manual `--scale` command. Finishes by polling the
-Gateway's `/actuator/health` and the frontend until both respond `200`.
+**`deploy.yml`** runs three roles in order:
+
+1. **`tls_certs`** — idempotent self-signed cert generation for the
+   frontend's nginx (`certs/traverse.crt`/`.key`). Only regenerates if the
+   cert is missing or expires within 30 days, via `openssl x509
+   -checkend`. See `certs/README.md` for why self-signed rather than a
+   real Let's Encrypt cert (no public domain to validate against on a
+   local Docker Desktop machine) and how a real cert would drop in later.
+2. **`vault_secrets`** — brings up just the `vault` container first (it
+   needs to talk to Vault's own API before `compose_deploy` gets around to
+   starting it normally), then syncs the secret subset of `.env`
+   (`vault_managed_secret_keys` in `group_vars/all.yml` — JWT secret, DB
+   passwords, Stripe/PayPal keys, etc.) with Vault's dev-mode KV store.
+   First run ever (or after a container restart wipes Vault's in-memory
+   store) seeds Vault *from* the existing `.env`; every run after that
+   updates `.env` *from* Vault instead, via `lineinfile` per key so every
+   comment and every non-secret line in `.env` survives untouched. This
+   makes `.env` self-healing across restarts without Vault's production
+   unseal ceremony — see Plan.md Phase 11 for why dev-mode Vault (in-memory
+   storage, fixed root token) is an honest, documented trade-off here, not
+   silently treated as production-grade.
+3. **`compose_deploy`** — runs `docker compose up -d --build --wait`,
+   scoped to the application services only (`core_services` +
+   `scalable_services` in `group_vars/all.yml`) — deliberately excluding
+   `jenkins`/`sonarqube`/`sonarqube-db`, which live in the same
+   `docker-compose.yml` as CI infrastructure (see Plan.md Phase 8, bug
+   #13, for what happens when a deploy recreates the Jenkins container
+   that's running the deploy). The four stateless backend services
+   (auth/user/travel/payment) are scaled to their configured replica count
+   (`service_replicas`, default 2 each) on every deploy via `--scale`, not
+   just as an ad-hoc manual flag — this is what actually gives the
+   "multiple replicas for load balancing/failover" requirement a standing,
+   automated home instead of a one-off manual `--scale` command. Finishes
+   by polling the Gateway's `/actuator/health` and the frontend's `https://`
+   endpoint (`validate_certs: false` — self-signed, no CA chain by design)
+   until both respond `200`.
 
 ## Verified live (not just written)
 
