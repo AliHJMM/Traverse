@@ -1,7 +1,9 @@
 package com.traverse.user.client;
 
+import com.traverse.user.logging.CorrelationIdFilter;
 import feign.RequestInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +27,22 @@ public class FeignAuthForwardingConfig {
         return template -> currentRequest()
                 .flatMap(request -> extractToken(request, cookieName))
                 .ifPresent(token -> template.header("Authorization", "Bearer " + token));
+    }
+
+    /**
+     * Carries the correlation ID from CorrelationIdFilter's MDC onto this
+     * outgoing call, so the request stays traceable across the Gateway ->
+     * User Service -> Auth Service hop in Loki/Grafana instead of the trail
+     * going cold at User Service.
+     */
+    @Bean
+    public RequestInterceptor correlationIdForwardingInterceptor() {
+        return template -> {
+            String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+            if (correlationId != null) {
+                template.header(CorrelationIdFilter.HEADER, correlationId);
+            }
+        };
     }
 
     private Optional<HttpServletRequest> currentRequest() {

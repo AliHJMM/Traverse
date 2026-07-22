@@ -41,3 +41,9 @@ management:
     web:
       exposure:
         include: health
+
+# correlationId is populated by CorrelationIdFilter (see logging package) so
+# a single request can be traced across every service's logs in Grafana/Loki.
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId:-nocorrelation}] %-5level ${spring.application.name} %logger{36} - %msg%n"
