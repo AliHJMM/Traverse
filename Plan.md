@@ -713,17 +713,38 @@ PR(s) before the next starts.
     `Secure; HttpOnly; SameSite=Strict`, and Vault's own API confirmed all
     13 managed secrets present with real values matching `.env`.
 
-- [ ] **Phase 12 — Testing**
-  - Unit tests per feature (required for CI to pass); integration/E2E tests
-    as a bonus pass.
+- [x] **Phase 12 — Testing**
+  - Unit tests per feature run in CI (backend JUnit/Mockito/MockMvc,
+    frontend Karma/Jasmine); per-service flow-integration tests too.
+  - **Load & failover testing** (k6, `loadtest/`): 20 concurrent users
+    against the Gateway → 1695 requests, 100% success, ~32 req/s, p95
+    944ms. Load balancing measured as a near-even 1620/1621 split across
+    two auth-service replicas. Failover: killed a replica mid-load → 96.9%
+    success, the ~3% dip confined to the documented Eureka detection
+    window, then full recovery on the survivor.
+  - **SonarQube coverage gate fix**: gateway (11.5%) and user-service
+    (65.4%) were FAILING the new-code coverage gate — the Phase 10
+    correlation-ID filters + Feign interceptor shipped without tests.
+    Added unit tests bringing all three classes to 100% coverage; both
+    gates flipped to Passed → **7/7 green** in SonarQube. (Also surfaced
+    that the pipeline's `waitForQualityGate` only checks the last of the 7
+    analyzed projects — noted for follow-up.)
+  - Automated E2E (Playwright-in-CI) intentionally left as a future bonus.
 
-- [ ] **Phase 13 — Documentation**
-  - Setup guide, DB schema docs (Postgres + Neo4j), deployment steps,
-    architecture diagram.
+- [x] **Phase 13 — Documentation**
+  - `README.md` (overview, architecture, quickstart, access points,
+    screenshots), `docs/architecture.md` (services, discovery, auth,
+    tracing, CI/CD, security), `docs/database-schema.md` (the four Postgres
+    schemas + the Neo4j destination graph), plus the already-existing
+    `ansible/README.md`, `loadtest/README.md`, `certs/README.md`. Nine
+    screenshots in `docs/` covering the dashboard, Jenkins, SonarQube (7/7),
+    Grafana log tracing, and Vault secrets.
 
 - [ ] **Phase 14 — Bonus: Kubernetes**
-  - Replace/augment Docker Compose with k8s manifests via Ansible for
-    orchestration, load balancing, HA — if time permits after core phases.
+  - Intentionally not done — deliberate scope decision: a full k8s cluster
+    running all ~15 services is both a large lift and a real stability risk
+    on this host (15.3 GB / 6 CPU, which already fought to run the Compose
+    stack). Documented as a conscious trade-off, not an oversight.
 
 ---
 
@@ -888,5 +909,13 @@ end-to-end: a real login through `https://localhost` came back with a
 13 managed secrets present. Full per-service Postgres role scoping is a
 known, documented limitation deferred past this session.
 
-Next: Phase 12 — Testing (unit tests per feature already exist and run in
-CI; integration/E2E tests are the remaining bonus pass).
+Phases 12 (Testing) and 13 (Documentation) are done: k6 load/failover tests
+prove load balancing (near-even replica split) and failover under traffic,
+the SonarQube coverage gate is green across all 7 modules (added the missing
+correlation-ID-filter tests), and the project is documented (`README.md`,
+`docs/architecture.md`, `docs/database-schema.md`, plus screenshots).
+
+All required Part-1 work is complete and live-verified. Remaining items are
+bonus-only and intentionally deferred: automated E2E-in-CI and Kubernetes
+(Phase 14) — the latter a deliberate scope decision given this host's
+resource ceiling.
