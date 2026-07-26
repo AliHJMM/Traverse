@@ -46,7 +46,7 @@ class SubscriptionFlowIntegrationTest {
 
     private Long createTravel(Cookie owner, LocalDate start, LocalDate end) throws Exception {
         CreateTravelRequest req = new CreateTravelRequest("Trip", start, end,
-                List.of(new DestinationRequest("Paris", "France", null, null)), null, null, null);
+                List.of(new DestinationRequest("Paris", "France", null, null)), null, null, null, null);
         var res = mockMvc.perform(post("/api/travels").cookie(owner)
                         .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated()).andReturn();

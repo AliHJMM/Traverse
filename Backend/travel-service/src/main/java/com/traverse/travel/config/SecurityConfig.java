@@ -32,6 +32,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/travels/reports/mine").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/travels/reports").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/api/travels/reports/**").hasRole("ADMIN")
+                        // Dashboards/stats: admin overview is admin only; a manager's
+                        // own dashboard is manager/admin; a manager's public snapshot
+                        // and a traveler's own stats are open to any authenticated user.
+                        .requestMatchers(HttpMethod.GET, "/api/travels/stats/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/travels/stats/manager/me").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/travels/stats/**").authenticated()
                         // Subscribe / unsubscribe: any authenticated role (travelers,
                         // and managers/admins acting as travelers). Must come BEFORE
                         // the generic POST/DELETE /api/travels/** rules below.

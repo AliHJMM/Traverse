@@ -37,6 +37,7 @@ public class TravelService {
     public Travel create(CreateTravelRequest request, Long managerId) {
         Travel travel = new Travel(request.title(), request.startDate(), request.endDate());
         travel.setManagerId(managerId);
+        travel.setPrice(request.price());
         populate(travel, request.destinations(), request.activities(), request.accommodations(), request.transportations());
         Travel saved = travelRepository.save(travel);
 
@@ -73,6 +74,7 @@ public class TravelService {
         travel.setTitle(request.title());
         travel.setStartDate(request.startDate());
         travel.setEndDate(request.endDate());
+        travel.setPrice(request.price());
 
         // Full replace of nested collections -- orphanRemoval on the Travel
         // entity cascades the deletes for whatever was there before.

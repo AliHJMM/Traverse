@@ -66,7 +66,8 @@ class TravelFlowIntegrationTest {
                 List.of(new AccommodationRequest("Hotel Lumiere", "Hotel", "1 Rue de Paris",
                         LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 5))),
                 List.of(new TransportationRequest("Flight", "AirFrance", "Paris", "Rome",
-                        LocalDateTime.of(2026, 8, 5, 9, 0), LocalDateTime.of(2026, 8, 5, 11, 0))));
+                        LocalDateTime.of(2026, 8, 5, 9, 0), LocalDateTime.of(2026, 8, 5, 11, 0))),
+                new BigDecimal("500.00"));
     }
 
     private Long createAs(Cookie cookie) throws Exception {
@@ -103,7 +104,7 @@ class TravelFlowIntegrationTest {
         UpdateTravelRequest updateRequest = new UpdateTravelRequest(
                 "Europe Trip Extended", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 12),
                 List.of(new DestinationRequest("Paris", "France", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 5))),
-                null, null, null);
+                null, null, null, null);
         mockMvc.perform(put("/api/travels/" + id).cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(updateRequest)))
                 .andExpect(status().isOk())
@@ -136,7 +137,7 @@ class TravelFlowIntegrationTest {
 
         UpdateTravelRequest update = new UpdateTravelRequest(
                 "Hijacked", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3),
-                List.of(new DestinationRequest("Paris", "France", null, null)), null, null, null);
+                List.of(new DestinationRequest("Paris", "France", null, null)), null, null, null, null);
 
         // Manager B may not edit manager A's travel
         mockMvc.perform(put("/api/travels/" + id).cookie(managerB)
@@ -174,7 +175,7 @@ class TravelFlowIntegrationTest {
         Cookie adminCookie = tokenCookie(1L, "admin@example.com", Role.ADMIN);
         CreateTravelRequest invalid = new CreateTravelRequest(
                 "No Destinations", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 5),
-                List.of(), null, null, null);
+                List.of(), null, null, null, null);
 
         mockMvc.perform(post("/api/travels").cookie(adminCookie)
                         .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(invalid)))

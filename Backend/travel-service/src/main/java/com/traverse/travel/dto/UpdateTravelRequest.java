@@ -5,7 +5,9 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -21,7 +23,8 @@ public record UpdateTravelRequest(
         @NotEmpty @Valid List<DestinationRequest> destinations,
         @Valid List<ActivityRequest> activities,
         @Valid List<AccommodationRequest> accommodations,
-        @Valid List<TransportationRequest> transportations
+        @Valid List<TransportationRequest> transportations,
+        @PositiveOrZero BigDecimal price
 ) {
     @AssertTrue(message = "endDate must not be before startDate")
     public boolean isDateRangeValid() {

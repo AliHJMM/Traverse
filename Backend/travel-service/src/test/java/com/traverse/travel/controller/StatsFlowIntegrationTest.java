@@ -2,10 +2,8 @@ package com.traverse.travel.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.traverse.travel.dto.CreateFeedbackRequest;
-import com.traverse.travel.dto.CreateReportRequest;
 import com.traverse.travel.dto.CreateTravelRequest;
 import com.traverse.travel.dto.DestinationRequest;
-import com.traverse.travel.entity.ReportSubjectType;
 import com.traverse.travel.entity.Role;
 import com.traverse.travel.service.DestinationGraphService;
 import io.jsonwebtoken.Jwts;
@@ -21,14 +19,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 
-import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @Transactional
-class FeedbackReportFlowIntegrationTest {
+class StatsFlowIntegrationTest {
 
     private static final String SECRET = "test-secret-key-please-be-at-least-32-bytes-long";
 
@@ -47,10 +44,10 @@ class FeedbackReportFlowIntegrationTest {
     @MockBean
     private DestinationGraphService destinationGraphService;
 
-    private Long createTravel(Cookie owner) throws Exception {
+    private Long createTravel(Cookie owner, BigDecimal price) throws Exception {
         CreateTravelRequest req = new CreateTravelRequest("Trip",
                 LocalDate.now().plusMonths(1), LocalDate.now().plusMonths(1).plusDays(5),
-                List.of(new DestinationRequest("Paris", "France", null, null)), null, null, null, null);
+                List.of(new DestinationRequest("Paris", "France", null, null)), null, null, null, price);
         var res = mockMvc.perform(post("/api/travels").cookie(owner)
                         .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated()).andReturn();
@@ -58,64 +55,55 @@ class FeedbackReportFlowIntegrationTest {
     }
 
     @Test
-    void feedbackRequiresSubscriptionThenSucceeds() throws Exception {
-        Cookie admin = tokenCookie(1L, "admin@example.com", Role.ADMIN);
+    void managerAndTravelerAndAdminDashboardsAggregateCorrectly() throws Exception {
+        Cookie manager = tokenCookie(10L, "manager@example.com", Role.TRAVEL_MANAGER);
         Cookie traveler = tokenCookie(2L, "traveler@example.com", Role.TRAVELER);
-        Long id = createTravel(admin);
+        Cookie admin = tokenCookie(1L, "admin@example.com", Role.ADMIN);
 
-        String fb = objectMapper.writeValueAsString(new CreateFeedbackRequest(5, "Amazing trip"));
-
-        // not subscribed -> cannot review
-        mockMvc.perform(post("/api/travels/" + id + "/feedback").cookie(traveler)
-                        .contentType(MediaType.APPLICATION_JSON).content(fb))
-                .andExpect(status().isConflict());
-
-        // subscribe, then review
+        Long id = createTravel(manager, new BigDecimal("500.00"));
         mockMvc.perform(post("/api/travels/" + id + "/subscribe").cookie(traveler)).andExpect(status().isCreated());
         mockMvc.perform(post("/api/travels/" + id + "/feedback").cookie(traveler)
-                        .contentType(MediaType.APPLICATION_JSON).content(fb))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.rating").value(5));
-        verify(destinationGraphService).recordRating(2L, id, 5);
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateFeedbackRequest(4, "Good"))))
+                .andExpect(status().isCreated());
 
-        // feedback visible on the travel and in "mine"
-        mockMvc.perform(get("/api/travels/" + id + "/feedback").cookie(admin))
+        // Manager dashboard: 1 trip, 1 traveler, income 500, avg rating 4
+        mockMvc.perform(get("/api/travels/stats/manager/me").cookie(manager))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].comment").value("Amazing trip"));
-        mockMvc.perform(get("/api/travels/feedback/mine").cookie(traveler))
+                .andExpect(jsonPath("$.tripsCount").value(1))
+                .andExpect(jsonPath("$.activeTravelersCount").value(1))
+                .andExpect(jsonPath("$.totalIncome").value(500.00))
+                .andExpect(jsonPath("$.averageRating").value(4.0));
+
+        // Traveler dashboard: 1 active trip, 1 feedback given
+        mockMvc.perform(get("/api/travels/stats/traveler/me").cookie(traveler))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(jsonPath("$.activeTrips").value(1))
+                .andExpect(jsonPath("$.feedbackGiven").value(1));
+
+        // Admin overview: platform totals + leaderboards
+        mockMvc.perform(get("/api/travels/stats/admin/overview").cookie(admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalTravels").value(1))
+                .andExpect(jsonPath("$.totalActiveSubscriptions").value(1))
+                .andExpect(jsonPath("$.totalIncome").value(500.00))
+                .andExpect(jsonPath("$.topManagers[0].managerId").value(10))
+                .andExpect(jsonPath("$.topTravels[0].subscribers").value(1));
+
+        // Public manager snapshot is visible to a traveler
+        mockMvc.perform(get("/api/travels/stats/manager/10").cookie(traveler))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tripsCount").value(1));
     }
 
     @Test
-    void reportFilingAndAdminReviewFlow() throws Exception {
-        Cookie admin = tokenCookie(1L, "admin@example.com", Role.ADMIN);
+    void dashboardAccessIsRoleGuarded() throws Exception {
         Cookie traveler = tokenCookie(2L, "traveler@example.com", Role.TRAVELER);
-
-        String report = objectMapper.writeValueAsString(
-                new CreateReportRequest(ReportSubjectType.MANAGER, 10L, null, "Rude behavior"));
-        var res = mockMvc.perform(post("/api/travels/reports").cookie(traveler)
-                        .contentType(MediaType.APPLICATION_JSON).content(report))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("OPEN"))
-                .andReturn();
-        long reportId = objectMapper.readTree(res.getResponse().getContentAsString()).get("id").asLong();
-
-        // reporter sees their own report
-        mockMvc.perform(get("/api/travels/reports/mine").cookie(traveler))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1));
-
-        // non-admin cannot list all reports
-        mockMvc.perform(get("/api/travels/reports").cookie(traveler)).andExpect(status().isForbidden());
-
-        // admin reviews all + marks reviewed
-        mockMvc.perform(get("/api/travels/reports").cookie(admin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].reason").value("Rude behavior"));
-        mockMvc.perform(patch("/api/travels/reports/" + reportId + "/review").cookie(admin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("REVIEWED"));
+        // Traveler cannot see the admin overview nor the manager-only dashboard
+        mockMvc.perform(get("/api/travels/stats/admin/overview").cookie(traveler))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/travels/stats/manager/me").cookie(traveler))
+                .andExpect(status().isForbidden());
     }
 
     private Cookie tokenCookie(Long id, String email, Role role) {

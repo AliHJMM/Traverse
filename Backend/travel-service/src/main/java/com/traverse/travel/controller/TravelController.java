@@ -109,6 +109,7 @@ public class TravelController {
 
         return new TravelResponse(travel.getId(), travel.getTitle(), travel.getStartDate(), travel.getEndDate(),
                 TravelResponse.computeDurationDays(travel.getStartDate(), travel.getEndDate()),
+                travel.getPrice(), travel.getManagerId(),
                 destinations, activities, accommodations, transportations, travel.getCreatedAt());
     }
 }

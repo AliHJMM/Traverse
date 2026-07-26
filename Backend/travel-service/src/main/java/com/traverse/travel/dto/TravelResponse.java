@@ -1,5 +1,6 @@
 package com.traverse.travel.dto;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -11,6 +12,8 @@ public record TravelResponse(
         LocalDate startDate,
         LocalDate endDate,
         long durationDays,
+        BigDecimal price,
+        Long managerId,
         List<DestinationResponse> destinations,
         List<ActivityResponse> activities,
         List<AccommodationResponse> accommodations,
