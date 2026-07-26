@@ -31,6 +31,11 @@ public class Travel {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    // The Travel Manager (auth user id) who owns this travel. Null for
+    // Part-1 travels created before ownership existed; admins manage any.
+    @Column(name = "manager_id")
+    private Long managerId;
+
     @OneToMany(mappedBy = "travel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Destination> destinations = new ArrayList<>();
 
@@ -97,6 +102,14 @@ public class Travel {
 
     public List<Transportation> getTransportations() {
         return transportations;
+    }
+
+    public Long getManagerId() {
+        return managerId;
+    }
+
+    public void setManagerId(Long managerId) {
+        this.managerId = managerId;
     }
 
     public Instant getCreatedAt() {
