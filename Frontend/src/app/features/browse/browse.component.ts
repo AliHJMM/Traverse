@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { RouterLink } from '@angular/router';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 
 import { TravelSearchResult } from '../../core/models/search.model';
@@ -28,6 +29,7 @@ import { TravelService } from '../../core/services/travel.service';
     MatIconModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    RouterLink,
   ],
   templateUrl: './browse.component.html',
 })

@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, ViewChild, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -11,10 +11,6 @@ import type { Stripe, StripeCardElement, StripeElements } from '@stripe/stripe-j
 
 import { PaymentService } from '../../core/services/payment.service';
 import { StripeLoaderService } from '../../core/services/stripe-loader.service';
-
-export interface PaymentFormDialogData {
-  userId?: number;
-}
 
 @Component({
   selector: 'app-payment-form-dialog',
@@ -35,7 +31,6 @@ export class PaymentFormDialogComponent implements AfterViewInit, OnDestroy {
   private readonly paymentService = inject(PaymentService);
   private readonly stripeLoader = inject(StripeLoaderService);
   private readonly dialogRef = inject(MatDialogRef<PaymentFormDialogComponent>);
-  private readonly data = inject<PaymentFormDialogData>(MAT_DIALOG_DATA, { optional: true }) ?? {};
 
   @ViewChild('cardElement') private readonly cardElementContainer?: ElementRef<HTMLDivElement>;
 
@@ -48,7 +43,6 @@ export class PaymentFormDialogComponent implements AfterViewInit, OnDestroy {
   readonly cardError = signal<string | null>(null);
 
   readonly form = this.fb.nonNullable.group({
-    userId: [this.data.userId ?? (null as number | null), [Validators.required]],
     provider: ['STRIPE' as 'STRIPE' | 'PAYPAL', [Validators.required]],
     paypalToken: [''],
     setDefault: [false],
@@ -91,12 +85,7 @@ export class PaymentFormDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async submit(): Promise<void> {
-    if (this.form.controls.userId.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-
-    const { userId, provider, paypalToken, setDefault } = this.form.getRawValue();
+    const { provider, paypalToken, setDefault } = this.form.getRawValue();
     this.saving.set(true);
     this.errorMessage.set(null);
 
@@ -117,7 +106,7 @@ export class PaymentFormDialogComponent implements AfterViewInit, OnDestroy {
       token = paypalToken;
     }
 
-    this.paymentService.create({ userId: userId!, provider, token, setDefault }).subscribe({
+    this.paymentService.create({ provider, token, setDefault }).subscribe({
       next: (paymentMethod) => {
         this.saving.set(false);
         this.dialogRef.close(paymentMethod);

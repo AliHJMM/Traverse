@@ -1,13 +1,17 @@
 <div class="flex flex-col gap-3 pb-6 sm:flex-row sm:items-center sm:justify-between">
   <div>
     <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Payments</h1>
-    <p class="text-sm text-slate-500">Saved payment methods across users</p>
+    <p class="text-sm text-slate-500">
+      {{ isAdmin ? 'Saved payment methods across users' : 'Your saved payment methods and history' }}
+    </p>
   </div>
   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-    <mat-form-field appearance="outline" class="w-full sm:w-40" subscriptSizing="dynamic">
-      <mat-label>Filter by user ID</mat-label>
-      <input matInput type="number" [(ngModel)]="userIdFilter" (ngModelChange)="reload()" aria-label="Filter by user ID" />
-    </mat-form-field>
+    @if (isAdmin) {
+      <mat-form-field appearance="outline" class="w-full sm:w-40" subscriptSizing="dynamic">
+        <mat-label>Filter by user ID</mat-label>
+        <input matInput type="number" [(ngModel)]="userIdFilter" (ngModelChange)="reload()" aria-label="Filter by user ID" />
+      </mat-form-field>
+    }
     <button mat-flat-button color="primary" (click)="openCreateDialog()" class="!rounded-lg w-full sm:w-auto">
       <mat-icon>add</mat-icon>
       Add payment method
@@ -59,8 +63,8 @@
         </td>
       </ng-container>
 
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns" class="hover:bg-slate-50"></tr>
+      <tr mat-header-row *matHeaderRowDef="methodColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: methodColumns" class="hover:bg-slate-50"></tr>
     </table>
 
     @if (paymentMethods().length === 0) {
@@ -73,4 +77,45 @@
       </div>
     }
   </div>
+
+  @if (!isAdmin) {
+    <h2 class="mb-3 mt-8 text-lg font-semibold text-slate-900">Payment history</h2>
+    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table mat-table [dataSource]="history()" class="w-full">
+        <ng-container matColumnDef="travelId">
+          <th mat-header-cell *matHeaderCellDef class="!bg-slate-50 !text-xs !font-medium !uppercase !tracking-wide !text-slate-500">Travel</th>
+          <td mat-cell *matCellDef="let p" class="!text-slate-700">#{{ p.travelId }}</td>
+        </ng-container>
+        <ng-container matColumnDef="provider">
+          <th mat-header-cell *matHeaderCellDef class="!bg-slate-50 !text-xs !font-medium !uppercase !tracking-wide !text-slate-500">Provider</th>
+          <td mat-cell *matCellDef="let p" class="!text-slate-600">{{ p.provider }}</td>
+        </ng-container>
+        <ng-container matColumnDef="amount">
+          <th mat-header-cell *matHeaderCellDef class="!bg-slate-50 !text-xs !font-medium !uppercase !tracking-wide !text-slate-500">Amount</th>
+          <td mat-cell *matCellDef="let p" class="!text-slate-700">{{ p.amount | currency: p.currency }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef class="!bg-slate-50 !text-xs !font-medium !uppercase !tracking-wide !text-slate-500">Status</th>
+          <td mat-cell *matCellDef="let p">
+            @if (p.status === 'SUCCEEDED') {
+              <span class="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">Succeeded</span>
+            } @else {
+              <span class="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">Failed</span>
+            }
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef class="!bg-slate-50 !text-xs !font-medium !uppercase !tracking-wide !text-slate-500">Date</th>
+          <td mat-cell *matCellDef="let p" class="!text-slate-500">{{ p.createdAt | date: 'medium' }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="historyColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: historyColumns"></tr>
+      </table>
+
+      @if (history().length === 0) {
+        <div class="p-8 text-center text-sm text-slate-400">No payments yet.</div>
+      }
+    </div>
+  }
 }

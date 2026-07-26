@@ -1,12 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { PaymentMethod } from '../../core/models/payment.model';
 import { StripeLoaderService } from '../../core/services/stripe-loader.service';
-import { PaymentFormDialogComponent, PaymentFormDialogData } from './payment-form-dialog.component';
+import { PaymentFormDialogComponent } from './payment-form-dialog.component';
 
 describe('PaymentFormDialogComponent', () => {
   let component: PaymentFormDialogComponent;
@@ -29,7 +29,7 @@ describe('PaymentFormDialogComponent', () => {
     createdAt: '2026-01-01T00:00:00Z',
   };
 
-  async function setup(data: PaymentFormDialogData) {
+  async function setup() {
     dialogRefSpy = jasmine.createSpyObj('MatDialogRef', ['close']);
     cardElementMock = jasmine.createSpyObj('StripeCardElement', ['mount', 'on', 'destroy']);
     stripeMock = {
@@ -48,7 +48,6 @@ describe('PaymentFormDialogComponent', () => {
         provideHttpClientTesting(),
         provideNoopAnimations(),
         { provide: MatDialogRef, useValue: dialogRefSpy },
-        { provide: MAT_DIALOG_DATA, useValue: data },
         { provide: StripeLoaderService, useValue: stripeLoaderSpy },
       ],
     }).compileComponents();
@@ -63,30 +62,25 @@ describe('PaymentFormDialogComponent', () => {
   afterEach(() => httpMock.verify());
 
   it('mounts the Stripe card element on init when provider is STRIPE', async () => {
-    await setup({});
+    await setup();
     expect(cardElementMock.mount).toHaveBeenCalled();
   });
 
-  it('prefills userId when provided via dialog data', async () => {
-    await setup({ userId: 42 });
-    expect(component.form.controls.userId.value).toBe(42);
-  });
-
-  it('creates a Stripe payment method token and posts it to /api/payments', async () => {
-    await setup({ userId: 42 });
+  it('creates a Stripe payment method token and posts it to /api/payments (no userId)', async () => {
+    await setup();
 
     await component.submit();
 
     expect(stripeMock.createPaymentMethod).toHaveBeenCalled();
     const req = httpMock.expectOne({ method: 'POST', url: '/api/payments' });
-    expect(req.request.body).toEqual({ userId: 42, provider: 'STRIPE', token: 'pm_test_123', setDefault: false });
+    expect(req.request.body).toEqual({ provider: 'STRIPE', token: 'pm_test_123', setDefault: false });
     req.flush(paymentMethod);
 
     expect(dialogRefSpy.close).toHaveBeenCalledWith(paymentMethod);
   });
 
   it('shows a card error and does not submit when Stripe declines the card', async () => {
-    await setup({ userId: 42 });
+    await setup();
     stripeMock.createPaymentMethod.and.resolveTo({ error: { message: 'Your card was declined.' } });
 
     await component.submit();
@@ -96,7 +90,7 @@ describe('PaymentFormDialogComponent', () => {
   });
 
   it('requires a PayPal token when the PayPal provider is selected', async () => {
-    await setup({ userId: 42 });
+    await setup();
     component.form.patchValue({ provider: 'PAYPAL' });
     component.onProviderChange();
 
@@ -107,7 +101,7 @@ describe('PaymentFormDialogComponent', () => {
   });
 
   it('submits a PayPal token directly without calling Stripe', async () => {
-    await setup({ userId: 42 });
+    await setup();
     component.form.patchValue({ provider: 'PAYPAL', paypalToken: 'paypal_token_abc' });
     component.onProviderChange();
 
@@ -115,7 +109,6 @@ describe('PaymentFormDialogComponent', () => {
 
     const req = httpMock.expectOne({ method: 'POST', url: '/api/payments' });
     expect(req.request.body).toEqual({
-      userId: 42,
       provider: 'PAYPAL',
       token: 'paypal_token_abc',
       setDefault: false,
@@ -126,7 +119,7 @@ describe('PaymentFormDialogComponent', () => {
   });
 
   it('cancel closes without a result', async () => {
-    await setup({});
+    await setup();
     component.cancel();
     expect(dialogRefSpy.close).toHaveBeenCalledWith();
   });

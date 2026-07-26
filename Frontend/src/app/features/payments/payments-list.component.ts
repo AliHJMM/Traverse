@@ -1,3 +1,4 @@
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,7 +10,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 
-import { PaymentMethod } from '../../core/models/payment.model';
+import { AuthService } from '../../core/auth/auth.service';
+import { Payment, PaymentMethod } from '../../core/models/payment.model';
 import { PaymentService } from '../../core/services/payment.service';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog/confirm-dialog.component';
 import { PaymentFormDialogComponent } from './payment-form-dialog.component';
@@ -19,6 +21,8 @@ import { PaymentFormDialogComponent } from './payment-form-dialog.component';
   // MatDialogModule intentionally not imported -- see UsersListComponent
   // for why (it would shadow the app-wide MatDialog instance in tests).
   imports: [
+    CurrencyPipe,
+    DatePipe,
     FormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -31,11 +35,18 @@ import { PaymentFormDialogComponent } from './payment-form-dialog.component';
 })
 export class PaymentsListComponent {
   private readonly paymentService = inject(PaymentService);
+  private readonly authService = inject(AuthService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
 
-  readonly displayedColumns = ['userId', 'provider', 'details', 'default', 'actions'];
+  readonly isAdmin = this.authService.currentUser?.role === 'ADMIN';
+  readonly methodColumns = this.isAdmin
+    ? ['userId', 'provider', 'details', 'default', 'actions']
+    : ['provider', 'details', 'default', 'actions'];
+  readonly historyColumns = ['travelId', 'provider', 'amount', 'status', 'date'];
+
   readonly paymentMethods = signal<PaymentMethod[]>([]);
+  readonly history = signal<Payment[]>([]);
   readonly loading = signal(true);
   userIdFilter: number | null = null;
 
@@ -45,7 +56,7 @@ export class PaymentsListComponent {
 
   reload(): void {
     this.loading.set(true);
-    this.paymentService.findAll(this.userIdFilter ?? undefined).subscribe({
+    this.paymentService.findAll(this.isAdmin ? (this.userIdFilter ?? undefined) : undefined).subscribe({
       next: (methods) => {
         this.paymentMethods.set(methods);
         this.loading.set(false);
@@ -55,6 +66,14 @@ export class PaymentsListComponent {
         this.snackBar.open('Failed to load payment methods.', 'Dismiss', { duration: 4000 });
       },
     });
+    // Everyone can see their own payment history; admins skip it (they
+    // review platform-wide finances on the dashboard instead).
+    if (!this.isAdmin) {
+      this.paymentService.history().subscribe({
+        next: (payments) => this.history.set(payments),
+        error: () => this.history.set([]),
+      });
+    }
   }
 
   details(method: PaymentMethod): string {
@@ -65,10 +84,7 @@ export class PaymentsListComponent {
   }
 
   openCreateDialog(): void {
-    const ref = this.dialog.open(PaymentFormDialogComponent, {
-      width: '480px',
-      data: { userId: this.userIdFilter ?? undefined },
-    });
+    const ref = this.dialog.open(PaymentFormDialogComponent, { width: '480px' });
     ref.afterClosed().subscribe((result) => {
       if (result) {
         this.snackBar.open('Payment method added.', 'Dismiss', { duration: 3000 });

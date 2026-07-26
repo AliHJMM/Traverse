@@ -6,6 +6,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
+import { AuthService } from '../../core/auth/auth.service';
 import { PaymentMethod } from '../../core/models/payment.model';
 import { PaymentsListComponent } from './payments-list.component';
 
@@ -40,6 +41,7 @@ describe('PaymentsListComponent', () => {
         provideNoopAnimations(),
         { provide: MatDialog, useValue: dialogSpy },
         { provide: MatSnackBar, useValue: snackBarSpy },
+        { provide: AuthService, useValue: { currentUser: { id: 1, email: 'a@b.c', role: 'ADMIN' } } },
       ],
     }).compileComponents();
 

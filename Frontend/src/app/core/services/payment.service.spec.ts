@@ -43,8 +43,8 @@ describe('PaymentService', () => {
     req.flush([paymentMethod]);
   });
 
-  it('create POSTs to /api/payments', () => {
-    const request = { userId: 42, provider: 'STRIPE' as const, token: 'pm_test_123', setDefault: true };
+  it('create POSTs to /api/payments (owner from auth, not the body)', () => {
+    const request = { provider: 'STRIPE' as const, token: 'pm_test_123', setDefault: true };
     service.create(request).subscribe((result) => expect(result).toEqual(paymentMethod));
 
     const req = httpMock.expectOne({ method: 'POST', url: '/api/payments' });
@@ -55,5 +55,18 @@ describe('PaymentService', () => {
   it('delete DELETEs /api/payments/:id', () => {
     service.delete(1).subscribe();
     httpMock.expectOne({ method: 'DELETE', url: '/api/payments/1' }).flush(null);
+  });
+
+  it('charge POSTs to /api/payments/charges', () => {
+    const request = { travelId: 100, paymentMethodId: 1, amount: 500 };
+    service.charge(request).subscribe();
+    const req = httpMock.expectOne({ method: 'POST', url: '/api/payments/charges' });
+    expect(req.request.body).toEqual(request);
+    req.flush({ id: 9, status: 'SUCCEEDED' });
+  });
+
+  it('history GETs /api/payments/charges/mine', () => {
+    service.history().subscribe();
+    httpMock.expectOne({ method: 'GET', url: '/api/payments/charges/mine' }).flush([]);
   });
 });

@@ -10,14 +10,17 @@ import { forkJoin } from 'rxjs';
 
 import { Travel } from '../../core/models/travel.model';
 import { FeedbackService } from '../../core/services/feedback.service';
+import { PaymentService } from '../../core/services/payment.service';
 import { SubscriptionService } from '../../core/services/subscription.service';
 import { TravelService } from '../../core/services/travel.service';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { PayDialogComponent } from '../payments/pay-dialog.component';
 import { FeedbackDialogComponent } from './feedback-dialog.component';
 
 interface TripView {
   travel: Travel;
   reviewed: boolean;
+  paid: boolean;
 }
 
 @Component({
@@ -36,6 +39,7 @@ export class MyTripsComponent {
   private readonly travelService = inject(TravelService);
   private readonly subscriptionService = inject(SubscriptionService);
   private readonly feedbackService = inject(FeedbackService);
+  private readonly paymentService = inject(PaymentService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -53,15 +57,21 @@ export class MyTripsComponent {
       subscriptions: this.subscriptionService.mine(),
       travels: this.travelService.findAll(),
       feedback: this.feedbackService.mine(),
+      payments: this.paymentService.history(),
     }).subscribe({
-      next: ({ subscriptions, travels, feedback }) => {
+      next: ({ subscriptions, travels, feedback, payments }) => {
         const byId = new Map(travels.map((t) => [t.id, t]));
         const reviewedIds = new Set(feedback.map((f) => f.travelId));
+        const paidIds = new Set(payments.filter((p) => p.status === 'SUCCEEDED').map((p) => p.travelId));
         const active = subscriptions
           .filter((s) => s.status === 'SUBSCRIBED')
           .map((s) => byId.get(s.travelId))
           .filter((t): t is Travel => !!t)
-          .map((travel) => ({ travel, reviewed: reviewedIds.has(travel.id) }));
+          .map((travel) => ({
+            travel,
+            reviewed: reviewedIds.has(travel.id),
+            paid: paidIds.has(travel.id),
+          }));
         this.trips.set(active);
         this.loading.set(false);
       },
@@ -74,6 +84,19 @@ export class MyTripsComponent {
 
   destinationSummary(travel: Travel): string {
     return travel.destinations.map((d) => d.city).join(', ');
+  }
+
+  pay(travel: Travel): void {
+    const ref = this.dialog.open(PayDialogComponent, {
+      width: '440px',
+      data: { travelId: travel.id, travelTitle: travel.title, amount: travel.price },
+    });
+    ref.afterClosed().subscribe((result) => {
+      if (result) {
+        this.snackBar.open('Payment successful.', 'Dismiss', { duration: 3000 });
+        this.reload();
+      }
+    });
   }
 
   leaveFeedback(travel: Travel): void {

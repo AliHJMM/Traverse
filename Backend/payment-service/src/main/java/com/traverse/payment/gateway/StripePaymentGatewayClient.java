@@ -2,8 +2,10 @@ package com.traverse.payment.gateway;
 
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
+import com.stripe.model.PaymentIntent;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.CustomerCreateParams;
+import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.PaymentMethodAttachParams;
 import com.traverse.payment.entity.PaymentProvider;
 import com.traverse.payment.entity.StripeCustomerMapping;
@@ -61,6 +63,32 @@ public class StripePaymentGatewayClient implements PaymentGatewayClient {
                     null);
         } catch (StripeException e) {
             throw new PaymentGatewayException("Stripe rejected payment method " + token, e);
+        }
+    }
+
+    /**
+     * Charges the saved card off-session via a confirmed PaymentIntent. The
+     * card is already attached to the user's Stripe Customer (see
+     * {@link #attach}), so the customer + payment-method pair is all Stripe
+     * needs to complete the charge without the cardholder present.
+     */
+    @Override
+    public String charge(Long userId, String externalPaymentMethodId, long amountMinor, String currency) {
+        try {
+            String customerId = findOrCreateCustomer(userId);
+            PaymentIntent intent = PaymentIntent.create(
+                    PaymentIntentCreateParams.builder()
+                            .setAmount(amountMinor)
+                            .setCurrency(currency.toLowerCase())
+                            .setCustomer(customerId)
+                            .setPaymentMethod(externalPaymentMethodId)
+                            .setConfirm(true)
+                            .setOffSession(true)
+                            .build(),
+                    requestOptions);
+            return intent.getId();
+        } catch (StripeException e) {
+            throw new PaymentGatewayException("Stripe declined charge on payment method " + externalPaymentMethodId, e);
         }
     }
 

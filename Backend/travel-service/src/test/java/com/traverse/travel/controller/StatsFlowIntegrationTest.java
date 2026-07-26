@@ -88,7 +88,10 @@ class StatsFlowIntegrationTest {
                 .andExpect(jsonPath("$.totalActiveSubscriptions").value(1))
                 .andExpect(jsonPath("$.totalIncome").value(500.00))
                 .andExpect(jsonPath("$.topManagers[0].managerId").value(10))
-                .andExpect(jsonPath("$.topTravels[0].subscribers").value(1));
+                .andExpect(jsonPath("$.topTravels[0].subscribers").value(1))
+                // 6-month income series, current month (last) holds this booking's income
+                .andExpect(jsonPath("$.monthlyIncome.length()").value(6))
+                .andExpect(jsonPath("$.monthlyIncome[5].income").value(500.00));
 
         // Public manager snapshot is visible to a traveler
         mockMvc.perform(get("/api/travels/stats/manager/10").cookie(traveler))

@@ -1,0 +1,57 @@
+<div class="mx-auto max-w-4xl">
+  <a routerLink="/browse" class="mb-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:underline">
+    <mat-icon class="!h-4 !w-4 !text-base">arrow_back</mat-icon> Back to browse
+  </a>
+
+  @if (loading()) {
+    <div class="flex justify-center py-16"><mat-spinner diameter="40"></mat-spinner></div>
+  } @else if (notFound()) {
+    <div class="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+      Manager profile not available.
+    </div>
+  } @else if (stats()) {
+    @if (stats(); as s) {
+    <div class="mb-6 flex items-center gap-4">
+      <div class="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-xl font-semibold text-white">
+        <mat-icon>person</mat-icon>
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Travel Manager #{{ managerId }}</h1>
+        <p class="text-sm text-slate-500">Performance overview</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm text-slate-500">Trips organized</div>
+        <div class="mt-1 text-3xl font-semibold text-slate-900">{{ s.tripsCount }}</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm text-slate-500">Active travelers</div>
+        <div class="mt-1 text-3xl font-semibold text-slate-900">{{ s.activeTravelersCount }}</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="flex items-center gap-1 text-sm text-slate-500">Average rating</div>
+        <div class="mt-1 flex items-center gap-1 text-3xl font-semibold text-slate-900">
+          {{ s.averageRating | number: '1.1-1' }}
+          <mat-icon class="!text-amber-400">star</mat-icon>
+        </div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm text-slate-500">Ratings received</div>
+        <div class="mt-1 text-3xl font-semibold text-slate-900">{{ s.feedbackCount }}</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm text-slate-500">Reports filed</div>
+        <div class="mt-1 text-3xl font-semibold" [class.text-red-600]="s.reportCount > 0" [class.text-slate-900]="s.reportCount === 0">
+          {{ s.reportCount }}
+        </div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <div class="text-sm text-slate-500">Income generated</div>
+        <div class="mt-1 text-3xl font-semibold text-slate-900">{{ s.totalIncome | currency: 'USD' : 'symbol' : '1.0-0' }}</div>
+      </div>
+    </div>
+    }
+  }
+</div>

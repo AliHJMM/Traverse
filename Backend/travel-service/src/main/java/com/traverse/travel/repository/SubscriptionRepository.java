@@ -11,6 +11,8 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     Optional<Subscription> findByTravelIdAndTravelerIdAndStatus(Long travelId, Long travelerId, SubscriptionStatus status);
 
+    List<Subscription> findByStatus(SubscriptionStatus status);
+
     List<Subscription> findByTravelIdAndStatus(Long travelId, SubscriptionStatus status);
 
     List<Subscription> findByTravelerIdAndStatus(Long travelerId, SubscriptionStatus status);
