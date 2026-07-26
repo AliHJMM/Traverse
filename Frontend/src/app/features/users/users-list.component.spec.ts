@@ -18,7 +18,7 @@ describe('UsersListComponent', () => {
   const user: User = {
     id: 1,
     email: 'traveler@example.com',
-    role: 'USER',
+    role: 'TRAVELER',
     fullName: 'Jane Traveler',
     phone: null,
     address: null,

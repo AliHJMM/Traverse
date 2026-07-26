@@ -39,7 +39,7 @@ describe('adminGuard', () => {
       done();
     });
 
-    httpMock.expectOne('/api/auth/me').flush({ id: 2, email: 'user@example.com', role: 'USER' });
+    httpMock.expectOne('/api/auth/me').flush({ id: 2, email: 'user@example.com', role: 'TRAVELER' });
   });
 
   it('redirects to /login when unauthenticated', (done) => {

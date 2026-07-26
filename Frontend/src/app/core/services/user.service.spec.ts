@@ -12,7 +12,7 @@ describe('UserService', () => {
   const user: User = {
     id: 1,
     email: 'traveler@example.com',
-    role: 'USER',
+    role: 'TRAVELER',
     fullName: 'Jane Traveler',
     phone: null,
     address: null,
@@ -41,7 +41,7 @@ describe('UserService', () => {
   });
 
   it('create POSTs to /api/users', () => {
-    const request = { email: 'traveler@example.com', password: 'password123', role: 'USER' as const, fullName: 'Jane Traveler' };
+    const request = { email: 'traveler@example.com', password: 'password123', role: 'TRAVELER' as const, fullName: 'Jane Traveler' };
     service.create(request).subscribe((result) => expect(result).toEqual(user));
 
     const req = httpMock.expectOne({ method: 'POST', url: '/api/users' });

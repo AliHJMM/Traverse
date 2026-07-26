@@ -53,11 +53,11 @@ class UserFlowIntegrationTest {
 
     @Test
     void adminCanCreateReadUpdateDeleteUser() throws Exception {
-        when(authServiceClient.register(any())).thenReturn(new AuthUserResponse(101L, "traveler@example.com", Role.USER));
+        when(authServiceClient.register(any())).thenReturn(new AuthUserResponse(101L, "traveler@example.com", Role.TRAVELER));
         Cookie adminCookie = tokenCookie(1L, "admin@example.com", Role.ADMIN);
 
         CreateUserRequest createRequest = new CreateUserRequest(
-                "traveler@example.com", "password123", Role.USER, "Jane Traveler", "555-1234", "1 Main St");
+                "traveler@example.com", "password123", Role.TRAVELER, "Jane Traveler", "555-1234", "1 Main St");
         mockMvc.perform(post("/api/users").cookie(adminCookie).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
@@ -88,7 +88,7 @@ class UserFlowIntegrationTest {
 
     @Test
     void nonAdminCannotAccessUserEndpoints() throws Exception {
-        Cookie userCookie = tokenCookie(2L, "user@example.com", Role.USER);
+        Cookie userCookie = tokenCookie(2L, "user@example.com", Role.TRAVELER);
         mockMvc.perform(get("/api/users").cookie(userCookie)).andExpect(status().isForbidden());
     }
 
@@ -99,10 +99,10 @@ class UserFlowIntegrationTest {
 
     @Test
     void duplicateEmailRejectedLocallyWithoutCallingAuthServiceAgain() throws Exception {
-        when(authServiceClient.register(any())).thenReturn(new AuthUserResponse(202L, "dup@example.com", Role.USER));
+        when(authServiceClient.register(any())).thenReturn(new AuthUserResponse(202L, "dup@example.com", Role.TRAVELER));
         Cookie adminCookie = tokenCookie(1L, "admin@example.com", Role.ADMIN);
 
-        CreateUserRequest request = new CreateUserRequest("dup@example.com", "password123", Role.USER, "Dup User", null, null);
+        CreateUserRequest request = new CreateUserRequest("dup@example.com", "password123", Role.TRAVELER, "Dup User", null, null);
         mockMvc.perform(post("/api/users").cookie(adminCookie).contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated());

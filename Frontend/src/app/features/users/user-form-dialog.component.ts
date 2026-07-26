@@ -43,7 +43,7 @@ export class UserFormDialogComponent {
   readonly form = this.fb.nonNullable.group({
     email: [this.data.user?.email ?? '', [Validators.required, Validators.email]],
     password: ['', this.isEdit ? [] : [Validators.required, Validators.minLength(8)]],
-    role: [this.data.user?.role ?? 'USER', [Validators.required]],
+    role: [this.data.user?.role ?? 'TRAVELER', [Validators.required]],
     fullName: [this.data.user?.fullName ?? '', [Validators.required]],
     phone: [this.data.user?.phone ?? ''],
     address: [this.data.user?.address ?? ''],

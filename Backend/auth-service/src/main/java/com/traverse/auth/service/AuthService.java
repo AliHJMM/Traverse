@@ -37,19 +37,20 @@ public class AuthService {
 
     /**
      * The very first account ever created becomes ADMIN (bootstrap, since no
-     * admin exists yet to grant that role). After that, a caller can only
-     * hand out ADMIN if they're already authenticated as ADMIN themselves --
-     * otherwise a public registration silently gets downgraded to USER,
-     * regardless of what role it asked for.
+     * admin exists yet to grant that role). After that, only an existing
+     * ADMIN may hand out a privileged role (ADMIN or TRAVEL_MANAGER) --
+     * a public registration asking for one silently falls back to TRAVELER,
+     * the default for ordinary signups.
      */
     private Role resolveRole(Role requestedRole, Role callerRole) {
         if (userRepository.count() == 0) {
             return Role.ADMIN;
         }
-        if (requestedRole == Role.ADMIN && callerRole != Role.ADMIN) {
-            return Role.USER;
+        boolean privileged = requestedRole == Role.ADMIN || requestedRole == Role.TRAVEL_MANAGER;
+        if (privileged && callerRole != Role.ADMIN) {
+            return Role.TRAVELER;
         }
-        return requestedRole == null ? Role.USER : requestedRole;
+        return requestedRole == null ? Role.TRAVELER : requestedRole;
     }
 
     @Transactional(readOnly = true)

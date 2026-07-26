@@ -113,7 +113,7 @@ class TravelFlowIntegrationTest {
 
     @Test
     void nonAdminCannotAccessTravelEndpoints() throws Exception {
-        Cookie userCookie = tokenCookie(2L, "user@example.com", Role.USER);
+        Cookie userCookie = tokenCookie(2L, "user@example.com", Role.TRAVELER);
         mockMvc.perform(get("/api/travels").cookie(userCookie)).andExpect(status().isForbidden());
     }
 

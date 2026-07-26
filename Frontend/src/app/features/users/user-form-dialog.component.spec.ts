@@ -16,7 +16,7 @@ describe('UserFormDialogComponent', () => {
   const existingUser: User = {
     id: 1,
     email: 'traveler@example.com',
-    role: 'USER',
+    role: 'TRAVELER',
     fullName: 'Jane Traveler',
     phone: null,
     address: null,
@@ -52,7 +52,7 @@ describe('UserFormDialogComponent', () => {
     component.form.setValue({
       email: 'new@example.com',
       password: 'password123',
-      role: 'USER',
+      role: 'TRAVELER',
       fullName: 'New Traveler',
       phone: '',
       address: '',
@@ -73,7 +73,7 @@ describe('UserFormDialogComponent', () => {
     component.form.setValue({
       email: 'new@example.com',
       password: 'short',
-      role: 'USER',
+      role: 'TRAVELER',
       fullName: 'New Traveler',
       phone: '',
       address: '',
@@ -106,7 +106,7 @@ describe('UserFormDialogComponent', () => {
     component.form.setValue({
       email: 'dup@example.com',
       password: 'password123',
-      role: 'USER',
+      role: 'TRAVELER',
       fullName: 'Dup',
       phone: '',
       address: '',

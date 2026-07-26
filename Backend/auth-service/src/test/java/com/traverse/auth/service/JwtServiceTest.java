@@ -30,7 +30,7 @@ class JwtServiceTest {
     @Test
     void expiredTokenFailsToParse() {
         JwtService jwtService = new JwtService(SECRET, -1);
-        User user = new User("test@example.com", "hash", Role.USER);
+        User user = new User("test@example.com", "hash", Role.TRAVELER);
         user.setId(1L);
 
         String token = jwtService.generateToken(user);
