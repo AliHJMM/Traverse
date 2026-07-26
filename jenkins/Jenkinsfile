@@ -51,7 +51,7 @@ pipeline {
                     script {
                         for (svc in BACKEND_SERVICES) {
                             dir("Backend/${svc}") {
-                                sh "mvn -B sonar:sonar -Dsonar.projectKey=traverse-${svc} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml"
+                                sh "mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar -Dsonar.projectKey=traverse-${svc} -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml"
                             }
                         }
                     }
