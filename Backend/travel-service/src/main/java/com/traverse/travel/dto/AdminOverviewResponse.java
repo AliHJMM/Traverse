@@ -11,6 +11,7 @@ public record AdminOverviewResponse(
         BigDecimal totalIncome,
         long openReports,
         List<ManagerStatsResponse> topManagers,
-        List<TravelStatSummary> topTravels
+        List<TravelStatSummary> topTravels,
+        List<MonthlyIncome> monthlyIncome
 ) {
 }

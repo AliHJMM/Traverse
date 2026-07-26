@@ -53,6 +53,12 @@ export const routes: Routes = [
           import('./features/reports/reports.component').then((m) => m.ReportsComponent),
       },
       {
+        path: 'managers/:id',
+        canActivate: [roleGuard],
+        loadComponent: () =>
+          import('./features/managers/manager-detail.component').then((m) => m.ManagerDetailComponent),
+      },
+      {
         path: 'payments',
         canActivate: [roleGuard],
         loadComponent: () =>

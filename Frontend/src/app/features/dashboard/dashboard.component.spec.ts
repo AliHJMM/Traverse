@@ -28,6 +28,9 @@ describe('DashboardComponent', () => {
 
   it('loads traveler stats for a traveler', () => {
     const fixture = setup({ id: 2, email: 't@b.c', role: 'TRAVELER' });
+    httpMock.expectOne('/api/payments').flush([
+      { id: 1, userId: 2, provider: 'STRIPE', brand: 'visa', last4: '4242', expiryMonth: 1, expiryYear: 2030, payerEmail: null, isDefault: true, createdAt: '' },
+    ]);
     httpMock.expectOne('/api/travels/stats/traveler/me').flush({
       travelerId: 2,
       activeTrips: 3,
@@ -36,6 +39,7 @@ describe('DashboardComponent', () => {
       reportsFiled: 0,
     });
     expect(fixture.componentInstance.travelerStats()?.activeTrips).toBe(3);
+    expect(fixture.componentInstance.preferredMethod()?.last4).toBe('4242');
     expect(fixture.componentInstance.loading()).toBeFalse();
   });
 
@@ -63,12 +67,15 @@ describe('DashboardComponent', () => {
       openReports: 1,
       topManagers: [],
       topTravels: [],
+      monthlyIncome: [{ month: '2026-07', income: 500 }],
     });
     expect(fixture.componentInstance.adminOverview()?.totalTravels).toBe(5);
+    expect(fixture.componentInstance.maxMonthlyIncome()).toBe(500);
   });
 
   it('stops loading gracefully on error', () => {
     const fixture = setup({ id: 2, email: 't@b.c', role: 'TRAVELER' });
+    httpMock.expectOne('/api/payments').flush([]);
     httpMock
       .expectOne('/api/travels/stats/traveler/me')
       .flush('err', { status: 500, statusText: 'Server Error' });

@@ -2,11 +2,13 @@ package com.traverse.travel.service;
 
 import com.traverse.travel.dto.AdminOverviewResponse;
 import com.traverse.travel.dto.ManagerStatsResponse;
+import com.traverse.travel.dto.MonthlyIncome;
 import com.traverse.travel.dto.TravelStatSummary;
 import com.traverse.travel.dto.TravelerStatsResponse;
 import com.traverse.travel.entity.Feedback;
 import com.traverse.travel.entity.ReportStatus;
 import com.traverse.travel.entity.ReportSubjectType;
+import com.traverse.travel.entity.Subscription;
 import com.traverse.travel.entity.SubscriptionStatus;
 import com.traverse.travel.entity.Travel;
 import com.traverse.travel.repository.FeedbackRepository;
@@ -17,7 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,6 +38,7 @@ import java.util.stream.Collectors;
 public class StatsService {
 
     private static final int TOP_N = 5;
+    private static final int MONTHS = 6;
 
     private final TravelRepository travelRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -115,7 +121,37 @@ public class StatsService {
         long openReports = reportRepository.countByStatus(ReportStatus.OPEN);
 
         return new AdminOverviewResponse(managerIds.size(), travels.size(), totalActiveSubs, totalIncome,
-                openReports, topManagers, topTravels);
+                openReports, topManagers, topTravels, monthlyIncome(travels));
+    }
+
+    /**
+     * Income booked per calendar month over the last {@value MONTHS} months
+     * (oldest first), derived from when each still-active subscription was
+     * created times its travel's price. Months with no bookings are included
+     * as zero so the dashboard renders a continuous series.
+     */
+    private List<MonthlyIncome> monthlyIncome(List<Travel> travels) {
+        Map<Long, BigDecimal> priceByTravel = travels.stream()
+                .collect(Collectors.toMap(Travel::getId, Travel::getPrice));
+
+        YearMonth current = YearMonth.now(ZoneOffset.UTC);
+        Map<YearMonth, BigDecimal> buckets = new LinkedHashMap<>();
+        for (int i = MONTHS - 1; i >= 0; i--) {
+            buckets.put(current.minusMonths(i), BigDecimal.ZERO);
+        }
+
+        for (Subscription sub : subscriptionRepository.findByStatus(SubscriptionStatus.SUBSCRIBED)) {
+            BigDecimal price = priceByTravel.get(sub.getTravelId());
+            if (price == null) {
+                continue;
+            }
+            YearMonth ym = YearMonth.from(sub.getCreatedAt().atZone(ZoneOffset.UTC));
+            buckets.computeIfPresent(ym, (k, v) -> v.add(price));
+        }
+
+        return buckets.entrySet().stream()
+                .map(e -> new MonthlyIncome(e.getKey().toString(), e.getValue()))
+                .toList();
     }
 
     private static double round(double value) {

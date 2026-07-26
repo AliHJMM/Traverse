@@ -25,6 +25,11 @@ export interface TravelStatSummary {
   averageRating: number;
 }
 
+export interface MonthlyIncome {
+  month: string;
+  income: number;
+}
+
 export interface AdminOverview {
   totalManagers: number;
   totalTravels: number;
@@ -33,4 +38,5 @@ export interface AdminOverview {
   openReports: number;
   topManagers: ManagerStats[];
   topTravels: TravelStatSummary[];
+  monthlyIncome: MonthlyIncome[];
 }
