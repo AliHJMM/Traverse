@@ -27,11 +27,19 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
+                        // Subscribe / unsubscribe: any authenticated role (travelers,
+                        // and managers/admins acting as travelers). Must come BEFORE
+                        // the generic POST/DELETE /api/travels/** rules below.
+                        .requestMatchers(HttpMethod.POST, "/api/travels/*/subscribe").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/travels/*/subscribe").authenticated()
+                        // Subscriber management (view list, remove a subscriber) is
+                        // manager/admin only; ownership is enforced in the service.
+                        .requestMatchers(HttpMethod.GET, "/api/travels/*/subscribers").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/travels/*/subscribers/*").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
                         // Creating/managing travels is for managers & admins;
-                        // per-travel ownership (a manager only edits their own)
-                        // is enforced in TravelService. Browsing (GET) +
-                        // recommendations are open to any authenticated role,
-                        // so travelers can search, view, and get suggestions.
+                        // per-travel ownership (a manager only edits their own) is
+                        // enforced in TravelService. Browsing (GET), recommendations,
+                        // and own-subscriptions are open to any authenticated role.
                         .requestMatchers(HttpMethod.POST, "/api/travels").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
                         .requestMatchers(HttpMethod.PUT, "/api/travels/**").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
                         .requestMatchers(HttpMethod.DELETE, "/api/travels/**").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
