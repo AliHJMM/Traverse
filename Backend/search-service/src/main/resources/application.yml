@@ -1,0 +1,36 @@
+server:
+  port: 8085
+
+spring:
+  application:
+    name: search-service
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: 5s
+    socket-timeout: 10s
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka}
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-change-me-please-must-be-at-least-32-bytes}
+
+app:
+  cookie:
+    name: ${COOKIE_NAME:access_token}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# correlationId is populated by CorrelationIdFilter so a single request can
+# be traced across every service's logs in Grafana/Loki.
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{correlationId:-nocorrelation}] %-5level ${spring.application.name} %logger{36} - %msg%n"

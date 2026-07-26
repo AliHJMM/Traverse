@@ -1,0 +1,14 @@
+# Test profile: no Eureka, no live Elasticsearch. Unit tests use Mockito +
+# standalone MockMvc, so nothing here connects to a real backend.
+eureka:
+  client:
+    enabled: false
+  instance:
+    prefer-ip-address: true
+
+jwt:
+  secret: test-secret-please-be-at-least-32-bytes-long-xx
+
+app:
+  cookie:
+    name: access_token

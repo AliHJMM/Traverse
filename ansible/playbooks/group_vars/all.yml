@@ -14,6 +14,7 @@ core_services:
   - postgres
   - neo4j
   - vault
+  - elasticsearch
   - discovery-server
   - gateway
   - frontend
@@ -27,12 +28,14 @@ scalable_services:
   - user-service
   - travel-service
   - payment-service
+  - search-service
 
 service_replicas:
   auth-service: 2
   user-service: 2
   travel-service: 2
   payment-service: 2
+  search-service: 2
 
 compose_wait_timeout_seconds: 240
 

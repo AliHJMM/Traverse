@@ -1,0 +1,15 @@
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+COPY src ./src
+RUN mvn package -DskipTests -B
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+# Least privilege (Plan.md Phase 11): non-root runtime user.
+RUN addgroup -S app && adduser -S app -G app
+USER app
+EXPOSE 8085
+ENTRYPOINT ["java", "-jar", "app.jar"]
