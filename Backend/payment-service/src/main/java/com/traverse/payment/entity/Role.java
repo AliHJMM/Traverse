@@ -1,6 +1,8 @@
 package com.traverse.payment.entity;
 
+/** Part 2 roles (legacy USER migrated to TRAVELER). */
 public enum Role {
     ADMIN,
-    USER
+    TRAVEL_MANAGER,
+    TRAVELER
 }

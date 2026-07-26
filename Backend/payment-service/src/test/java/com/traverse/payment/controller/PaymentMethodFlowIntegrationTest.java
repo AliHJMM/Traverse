@@ -135,7 +135,7 @@ class PaymentMethodFlowIntegrationTest {
 
     @Test
     void nonAdminCannotAccessPaymentEndpoints() throws Exception {
-        Cookie userCookie = tokenCookie(2L, "user@example.com", Role.USER);
+        Cookie userCookie = tokenCookie(2L, "user@example.com", Role.TRAVELER);
         mockMvc.perform(get("/api/payments").cookie(userCookie)).andExpect(status().isForbidden());
     }
 
