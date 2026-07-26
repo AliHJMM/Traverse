@@ -16,8 +16,8 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(TravelNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTravelNotFound(TravelNotFoundException ex) {
+    @ExceptionHandler({TravelNotFoundException.class, ReportNotFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFound(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(ex.getMessage()));
     }
 

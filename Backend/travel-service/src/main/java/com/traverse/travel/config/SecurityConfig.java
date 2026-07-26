@@ -27,6 +27,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
+                        // Reports: filing + own-reports open to any authenticated user;
+                        // reviewing all reports is admin only. Specific matchers first.
+                        .requestMatchers(HttpMethod.GET, "/api/travels/reports/mine").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/travels/reports").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/travels/reports/**").hasRole("ADMIN")
                         // Subscribe / unsubscribe: any authenticated role (travelers,
                         // and managers/admins acting as travelers). Must come BEFORE
                         // the generic POST/DELETE /api/travels/** rules below.
