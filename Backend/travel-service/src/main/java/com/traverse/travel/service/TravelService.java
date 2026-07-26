@@ -28,10 +28,13 @@ public class TravelService {
 
     private final TravelRepository travelRepository;
     private final DestinationGraphService destinationGraphService;
+    private final SearchIndexClient searchIndexClient;
 
-    public TravelService(TravelRepository travelRepository, DestinationGraphService destinationGraphService) {
+    public TravelService(TravelRepository travelRepository, DestinationGraphService destinationGraphService,
+                         SearchIndexClient searchIndexClient) {
         this.travelRepository = travelRepository;
         this.destinationGraphService = destinationGraphService;
+        this.searchIndexClient = searchIndexClient;
     }
 
     public Travel create(CreateTravelRequest request, Long managerId) {
@@ -44,6 +47,7 @@ public class TravelService {
         destinationGraphService.syncItinerary(request.destinations());
         destinationGraphService.syncTravelFeatures(saved.getId(), request.destinations(), request.activities(),
                 request.accommodations(), request.transportations());
+        searchIndexClient.index(saved);
         return saved;
     }
 
@@ -88,6 +92,7 @@ public class TravelService {
         destinationGraphService.syncItinerary(request.destinations());
         destinationGraphService.syncTravelFeatures(id, request.destinations(), request.activities(),
                 request.accommodations(), request.transportations());
+        searchIndexClient.index(saved);
         return saved;
     }
 
@@ -98,6 +103,7 @@ public class TravelService {
         // orphanRemoval -- no separate delete calls needed.
         travelRepository.deleteById(id);
         destinationGraphService.deleteTravelNode(id);
+        searchIndexClient.delete(id);
     }
 
     /**
