@@ -13,6 +13,12 @@
         <input matInput formControlName="title" aria-label="Title" />
       </mat-form-field>
 
+      <mat-form-field appearance="outline" class="w-full sm:w-40">
+        <mat-label>Price</mat-label>
+        <span matTextPrefix>$&nbsp;</span>
+        <input matInput type="number" min="0" step="0.01" formControlName="price" aria-label="Price" />
+      </mat-form-field>
+
       <mat-form-field appearance="outline" class="w-full sm:flex-1">
         <mat-label>Start date</mat-label>
         <input matInput [matDatepicker]="startPicker" formControlName="startDate" aria-label="Start date" />

@@ -6,6 +6,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
+import { AuthService } from '../../core/auth/auth.service';
 import { Travel } from '../../core/models/travel.model';
 import { TravelsListComponent } from './travels-list.component';
 
@@ -21,6 +22,8 @@ describe('TravelsListComponent', () => {
     startDate: '2026-08-01',
     endDate: '2026-08-10',
     durationDays: 10,
+    price: 500,
+    managerId: 10,
     destinations: [{ city: 'Paris', country: 'France', arrivalDate: null, departureDate: null }],
     activities: [],
     accommodations: [],
@@ -40,6 +43,7 @@ describe('TravelsListComponent', () => {
         provideNoopAnimations(),
         { provide: MatDialog, useValue: dialogSpy },
         { provide: MatSnackBar, useValue: snackBarSpy },
+        { provide: AuthService, useValue: { currentUser: { id: 1, email: 'a@b.c', role: 'ADMIN' } } },
       ],
     }).compileComponents();
 

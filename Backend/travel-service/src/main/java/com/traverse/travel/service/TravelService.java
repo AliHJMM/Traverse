@@ -11,13 +11,16 @@ import com.traverse.travel.entity.Activity;
 import com.traverse.travel.entity.Destination;
 import com.traverse.travel.entity.Transportation;
 import com.traverse.travel.entity.Travel;
+import com.traverse.travel.exception.TravelAccessDeniedException;
 import com.traverse.travel.exception.TravelNotFoundException;
 import com.traverse.travel.repository.TravelRepository;
 import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -25,18 +28,26 @@ public class TravelService {
 
     private final TravelRepository travelRepository;
     private final DestinationGraphService destinationGraphService;
+    private final SearchIndexClient searchIndexClient;
 
-    public TravelService(TravelRepository travelRepository, DestinationGraphService destinationGraphService) {
+    public TravelService(TravelRepository travelRepository, DestinationGraphService destinationGraphService,
+                         SearchIndexClient searchIndexClient) {
         this.travelRepository = travelRepository;
         this.destinationGraphService = destinationGraphService;
+        this.searchIndexClient = searchIndexClient;
     }
 
-    public Travel create(CreateTravelRequest request) {
+    public Travel create(CreateTravelRequest request, Long managerId) {
         Travel travel = new Travel(request.title(), request.startDate(), request.endDate());
+        travel.setManagerId(managerId);
+        travel.setPrice(request.price());
         populate(travel, request.destinations(), request.activities(), request.accommodations(), request.transportations());
         Travel saved = travelRepository.save(travel);
 
         destinationGraphService.syncItinerary(request.destinations());
+        destinationGraphService.syncTravelFeatures(saved.getId(), request.destinations(), request.activities(),
+                request.accommodations(), request.transportations());
+        searchIndexClient.index(saved);
         return saved;
     }
 
@@ -48,17 +59,26 @@ public class TravelService {
     }
 
     @Transactional(readOnly = true)
+    public List<Travel> findByManager(Long managerId) {
+        List<Travel> travels = travelRepository.findByManagerId(managerId);
+        travels.forEach(this::initializeCollections);
+        return travels;
+    }
+
+    @Transactional(readOnly = true)
     public Travel findById(Long id) {
         Travel travel = travelRepository.findById(id).orElseThrow(() -> new TravelNotFoundException(id));
         initializeCollections(travel);
         return travel;
     }
 
-    public Travel update(Long id, UpdateTravelRequest request) {
+    public Travel update(Long id, UpdateTravelRequest request, Long callerId, boolean admin) {
         Travel travel = findById(id);
+        assertCanManage(travel, callerId, admin);
         travel.setTitle(request.title());
         travel.setStartDate(request.startDate());
         travel.setEndDate(request.endDate());
+        travel.setPrice(request.price());
 
         // Full replace of nested collections -- orphanRemoval on the Travel
         // entity cascades the deletes for whatever was there before.
@@ -70,16 +90,52 @@ public class TravelService {
 
         Travel saved = travelRepository.save(travel);
         destinationGraphService.syncItinerary(request.destinations());
+        destinationGraphService.syncTravelFeatures(id, request.destinations(), request.activities(),
+                request.accommodations(), request.transportations());
+        searchIndexClient.index(saved);
         return saved;
     }
 
-    public void delete(Long id) {
-        if (!travelRepository.existsById(id)) {
-            throw new TravelNotFoundException(id);
-        }
+    public void delete(Long id, Long callerId, boolean admin) {
+        Travel travel = travelRepository.findById(id).orElseThrow(() -> new TravelNotFoundException(id));
+        assertCanManage(travel, callerId, admin);
         // destinations/activities/accommodations/transportations cascade via
         // orphanRemoval -- no separate delete calls needed.
         travelRepository.deleteById(id);
+        destinationGraphService.deleteTravelNode(id);
+        searchIndexClient.delete(id);
+    }
+
+    /**
+     * Neo4j-backed personalized recommendations: ranked travel ids come from
+     * the graph, then the full travels are loaded from Postgres (the source
+     * of truth) preserving the recommendation order.
+     */
+    @Transactional(readOnly = true)
+    public List<Travel> recommendFor(Long userId) {
+        List<Long> rankedIds = destinationGraphService.recommendTravelIds(userId);
+        if (rankedIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Travel> byId = new LinkedHashMap<>();
+        travelRepository.findAllById(rankedIds).forEach(t -> byId.put(t.getId(), t));
+        return rankedIds.stream()
+                .map(byId::get)
+                .filter(t -> t != null)
+                .map(t -> {
+                    initializeCollections(t);
+                    return t;
+                })
+                .toList();
+    }
+
+    private void assertCanManage(Travel travel, Long callerId, boolean admin) {
+        if (admin) {
+            return;
+        }
+        if (travel.getManagerId() == null || !travel.getManagerId().equals(callerId)) {
+            throw new TravelAccessDeniedException(travel.getId());
+        }
     }
 
     /**

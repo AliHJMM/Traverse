@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -30,6 +31,15 @@ public class Travel {
 
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
+
+    // The Travel Manager (auth user id) who owns this travel. Null for
+    // Part-1 travels created before ownership existed; admins manage any.
+    @Column(name = "manager_id")
+    private Long managerId;
+
+    // Booking price per traveler; income = price x active subscriptions.
+    @Column(nullable = false)
+    private BigDecimal price = BigDecimal.ZERO;
 
     @OneToMany(mappedBy = "travel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Destination> destinations = new ArrayList<>();
@@ -97,6 +107,22 @@ public class Travel {
 
     public List<Transportation> getTransportations() {
         return transportations;
+    }
+
+    public Long getManagerId() {
+        return managerId;
+    }
+
+    public void setManagerId(Long managerId) {
+        this.managerId = managerId;
+    }
+
+    public BigDecimal getPrice() {
+        return price;
+    }
+
+    public void setPrice(BigDecimal price) {
+        this.price = price == null ? BigDecimal.ZERO : price;
     }
 
     public Instant getCreatedAt() {

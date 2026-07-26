@@ -8,12 +8,15 @@ import com.traverse.travel.dto.NearbyDestinationResponse;
 import com.traverse.travel.dto.TransportationResponse;
 import com.traverse.travel.dto.TravelResponse;
 import com.traverse.travel.dto.UpdateTravelRequest;
+import com.traverse.travel.entity.Role;
 import com.traverse.travel.entity.Travel;
+import com.traverse.travel.security.AuthenticatedUser;
 import com.traverse.travel.service.DestinationGraphService;
 import com.traverse.travel.service.TravelService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,14 +41,28 @@ public class TravelController {
     }
 
     @PostMapping
-    public ResponseEntity<TravelResponse> create(@Valid @RequestBody CreateTravelRequest request) {
-        Travel travel = travelService.create(request);
+    public ResponseEntity<TravelResponse> create(@Valid @RequestBody CreateTravelRequest request,
+                                                 @AuthenticationPrincipal AuthenticatedUser principal) {
+        Travel travel = travelService.create(request, principal.id());
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(travel));
     }
 
+    /** Browse all travels (any authenticated role -- travelers included). */
     @GetMapping
     public List<TravelResponse> findAll() {
         return travelService.findAll().stream().map(this::toResponse).toList();
+    }
+
+    /** A Travel Manager's own listings. */
+    @GetMapping("/mine")
+    public List<TravelResponse> findMine(@AuthenticationPrincipal AuthenticatedUser principal) {
+        return travelService.findByManager(principal.id()).stream().map(this::toResponse).toList();
+    }
+
+    /** Neo4j personalized recommendations for the current traveler. */
+    @GetMapping("/recommendations")
+    public List<TravelResponse> recommendations(@AuthenticationPrincipal AuthenticatedUser principal) {
+        return travelService.recommendFor(principal.id()).stream().map(this::toResponse).toList();
     }
 
     @GetMapping("/{id}")
@@ -54,19 +71,25 @@ public class TravelController {
     }
 
     @PutMapping("/{id}")
-    public TravelResponse update(@PathVariable Long id, @Valid @RequestBody UpdateTravelRequest request) {
-        return toResponse(travelService.update(id, request));
+    public TravelResponse update(@PathVariable Long id, @Valid @RequestBody UpdateTravelRequest request,
+                                 @AuthenticationPrincipal AuthenticatedUser principal) {
+        return toResponse(travelService.update(id, request, principal.id(), isAdmin(principal)));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        travelService.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable Long id,
+                                       @AuthenticationPrincipal AuthenticatedUser principal) {
+        travelService.delete(id, principal.id(), isAdmin(principal));
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/destinations/{city}/nearby")
     public List<NearbyDestinationResponse> nearby(@PathVariable String city) {
         return destinationGraphService.findNearby(city);
+    }
+
+    private boolean isAdmin(AuthenticatedUser principal) {
+        return principal != null && principal.role() == Role.ADMIN;
     }
 
     private TravelResponse toResponse(Travel travel) {
@@ -86,6 +109,7 @@ public class TravelController {
 
         return new TravelResponse(travel.getId(), travel.getTitle(), travel.getStartDate(), travel.getEndDate(),
                 TravelResponse.computeDurationDays(travel.getStartDate(), travel.getEndDate()),
+                travel.getPrice(), travel.getManagerId(),
                 destinations, activities, accommodations, transportations, travel.getCreatedAt());
     }
 }

@@ -36,14 +36,14 @@ describe('LoginComponent', () => {
     httpMock.expectNone('/api/auth/login');
   });
 
-  it('navigates to /users on successful login', () => {
+  it('navigates to /dashboard on successful login', () => {
     const navigateSpy = spyOn(router, 'navigateByUrl');
     component.form.setValue({ email: 'admin@example.com', password: 'password123' });
 
     component.submit();
     httpMock.expectOne('/api/auth/login').flush({ id: 1, email: 'admin@example.com', role: 'ADMIN' });
 
-    expect(navigateSpy).toHaveBeenCalledWith('/users');
+    expect(navigateSpy).toHaveBeenCalledWith('/dashboard');
     expect(component.loading()).toBeFalse();
   });
 

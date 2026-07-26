@@ -1,0 +1,27 @@
+<h2 mat-dialog-title>Subscribers · {{ data.travelTitle }}</h2>
+
+<mat-dialog-content class="!min-w-[320px]">
+  @if (loading()) {
+    <div class="flex justify-center py-10"><mat-spinner diameter="32"></mat-spinner></div>
+  } @else if (subscribers().length === 0) {
+    <p class="py-8 text-center text-sm text-slate-500">No subscribers yet.</p>
+  } @else {
+    <ul class="divide-y divide-slate-100">
+      @for (s of subscribers(); track s.travelerId) {
+        <li class="flex items-center justify-between py-2.5">
+          <div>
+            <div class="text-sm font-medium text-slate-800">Traveler #{{ s.travelerId }}</div>
+            <div class="text-xs text-slate-400">Since {{ s.subscribedAt | date: 'mediumDate' }}</div>
+          </div>
+          <button mat-icon-button color="warn" (click)="remove(s.travelerId)" aria-label="Remove subscriber">
+            <mat-icon>person_remove</mat-icon>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Close</button>
+</mat-dialog-actions>

@@ -1,3 +1,4 @@
+import { CurrencyPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -6,24 +7,28 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 
+import { AuthService } from '../../core/auth/auth.service';
 import { Travel } from '../../core/models/travel.model';
 import { TravelService } from '../../core/services/travel.service';
 import { ConfirmDialogComponent } from '../../shared/confirm-dialog/confirm-dialog.component';
+import { SubscribersDialogComponent } from './subscribers-dialog.component';
 import { TravelFormDialogComponent } from './travel-form-dialog.component';
 
 @Component({
   selector: 'app-travels-list',
   // MatDialogModule intentionally not imported -- see UsersListComponent
   // for why (it would shadow the app-wide MatDialog instance in tests).
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTableModule],
+  imports: [CurrencyPipe, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTableModule],
   templateUrl: './travels-list.component.html',
 })
 export class TravelsListComponent {
   private readonly travelService = inject(TravelService);
+  private readonly authService = inject(AuthService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
 
-  readonly displayedColumns = ['title', 'dates', 'duration', 'destinations', 'actions'];
+  readonly isAdmin = this.authService.currentUser?.role === 'ADMIN';
+  readonly displayedColumns = ['title', 'dates', 'duration', 'price', 'destinations', 'actions'];
   readonly travels = signal<Travel[]>([]);
   readonly loading = signal(true);
 
@@ -33,7 +38,9 @@ export class TravelsListComponent {
 
   reload(): void {
     this.loading.set(true);
-    this.travelService.findAll().subscribe({
+    // Admins manage the whole catalogue; managers only their own travels.
+    const source$ = this.isAdmin ? this.travelService.findAll() : this.travelService.findMine();
+    source$.subscribe({
       next: (travels) => {
         this.travels.set(travels);
         this.loading.set(false);
@@ -74,6 +81,13 @@ export class TravelsListComponent {
         this.snackBar.open('Travel updated.', 'Dismiss', { duration: 3000 });
         this.reload();
       }
+    });
+  }
+
+  openSubscribers(travel: Travel): void {
+    this.dialog.open(SubscribersDialogComponent, {
+      width: '480px',
+      data: { travelId: travel.id, travelTitle: travel.title },
     });
   }
 

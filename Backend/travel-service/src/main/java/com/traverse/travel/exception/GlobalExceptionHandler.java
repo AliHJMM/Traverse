@@ -16,9 +16,19 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(TravelNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTravelNotFound(TravelNotFoundException ex) {
+    @ExceptionHandler({TravelNotFoundException.class, ReportNotFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFound(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(TravelAccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(TravelAccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler({SubscriptionCutoffException.class, SubscriptionStateException.class})
+    public ResponseEntity<ErrorResponse> handleSubscriptionConflict(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

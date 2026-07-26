@@ -42,6 +42,7 @@ export class TravelFormDialogComponent {
 
   readonly form = this.fb.nonNullable.group({
     title: [this.data.travel?.title ?? '', [Validators.required]],
+    price: [this.data.travel?.price ?? 0, [Validators.required, Validators.min(0)]],
     startDate: [this.data.travel ? new Date(this.data.travel.startDate) : null, [Validators.required]],
     endDate: [this.data.travel ? new Date(this.data.travel.endDate) : null, [Validators.required]],
     destinations: this.fb.array(
@@ -157,6 +158,7 @@ export class TravelFormDialogComponent {
 
     const request = {
       title: value.title,
+      price: value.price,
       startDate: toDateOnly(value.startDate)!,
       endDate: toDateOnly(value.endDate)!,
       destinations: value.destinations.map((d) => ({

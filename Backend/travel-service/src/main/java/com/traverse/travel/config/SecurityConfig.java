@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -26,7 +27,34 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
-                        .requestMatchers("/api/travels/**").hasRole("ADMIN")
+                        // Reports: filing + own-reports open to any authenticated user;
+                        // reviewing all reports is admin only. Specific matchers first.
+                        .requestMatchers(HttpMethod.GET, "/api/travels/reports/mine").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/travels/reports").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/travels/reports/**").hasRole("ADMIN")
+                        // Dashboards/stats: admin overview is admin only; a manager's
+                        // own dashboard is manager/admin; a manager's public snapshot
+                        // and a traveler's own stats are open to any authenticated user.
+                        .requestMatchers(HttpMethod.GET, "/api/travels/stats/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/travels/stats/manager/me").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/travels/stats/**").authenticated()
+                        // Subscribe / unsubscribe: any authenticated role (travelers,
+                        // and managers/admins acting as travelers). Must come BEFORE
+                        // the generic POST/DELETE /api/travels/** rules below.
+                        .requestMatchers(HttpMethod.POST, "/api/travels/*/subscribe").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/travels/*/subscribe").authenticated()
+                        // Subscriber management (view list, remove a subscriber) is
+                        // manager/admin only; ownership is enforced in the service.
+                        .requestMatchers(HttpMethod.GET, "/api/travels/*/subscribers").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/travels/*/subscribers/*").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        // Creating/managing travels is for managers & admins;
+                        // per-travel ownership (a manager only edits their own) is
+                        // enforced in TravelService. Browsing (GET), recommendations,
+                        // and own-subscriptions are open to any authenticated role.
+                        .requestMatchers(HttpMethod.POST, "/api/travels").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.PUT, "/api/travels/**").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/travels/**").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/travels/**").authenticated()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(
                         (request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))

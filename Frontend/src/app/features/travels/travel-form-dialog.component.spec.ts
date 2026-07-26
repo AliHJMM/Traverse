@@ -19,6 +19,8 @@ describe('TravelFormDialogComponent', () => {
     startDate: '2026-08-01',
     endDate: '2026-08-10',
     durationDays: 10,
+    price: 500,
+    managerId: 10,
     destinations: [{ city: 'Paris', country: 'France', arrivalDate: null, departureDate: null }],
     activities: [],
     accommodations: [],
@@ -63,6 +65,7 @@ describe('TravelFormDialogComponent', () => {
 
     component.form.patchValue({
       title: 'Europe Trip',
+      price: 750,
       startDate: new Date('2026-08-01'),
       endDate: new Date('2026-08-10'),
     });
@@ -73,6 +76,7 @@ describe('TravelFormDialogComponent', () => {
 
     const req = httpMock.expectOne({ method: 'POST', url: '/api/travels' });
     expect(req.request.body.title).toBe('Europe Trip');
+    expect(req.request.body.price).toBe(750);
     expect(req.request.body.destinations).toEqual([
       { city: 'Paris', country: 'France', arrivalDate: null, departureDate: null },
     ]);
