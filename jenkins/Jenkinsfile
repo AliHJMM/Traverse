@@ -45,6 +45,26 @@ pipeline {
             }
         }
 
+        // End-to-end tests (Cypress) drive the built app against a stubbed API
+        // via cy.intercept, so no backend/DB needs to be up. `cypress verify`
+        // is probed first: if the CI image predates the Cypress runtime libs
+        // (see jenkins/Dockerfile) the stage skips instead of failing, keeping
+        // older images green until they're rebuilt.
+        stage('Frontend: E2E (Cypress)') {
+            steps {
+                dir('Frontend') {
+                    sh '''
+                        if npx cypress verify > cypress-verify.log 2>&1; then
+                            npm run e2e
+                        else
+                            echo "Cypress runtime deps unavailable in this CI image -- skipping E2E (run locally with 'npm run e2e'). Rebuild the jenkins image to enable."
+                            cat cypress-verify.log || true
+                        fi
+                    '''
+                }
+            }
+        }
+
         stage('SonarQube: analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {

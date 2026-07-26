@@ -41,6 +41,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# Cypress E2E runtime deps -- the shared libraries its bundled Electron needs
+# to launch headless in CI. Without these `cypress run` can't start; the E2E
+# pipeline stage probes `cypress verify` and skips gracefully when they're
+# absent, so an older image stays green until it's rebuilt with this layer.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libgtk-3-0 libgbm1 libnotify4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
 # Official SonarQube Scanner CLI (used for the Angular/TypeScript analysis --
 # the backend Java modules use the sonar-maven-plugin instead, invoked via
 # `mvn sonar:sonar`, so they don't need this)
