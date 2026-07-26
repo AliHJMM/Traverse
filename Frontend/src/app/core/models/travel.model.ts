@@ -40,6 +40,8 @@ export interface Travel {
   startDate: string;
   endDate: string;
   durationDays: number;
+  price: number;
+  managerId: number | null;
   destinations: Destination[];
   activities: Activity[];
   accommodations: Accommodation[];
@@ -51,6 +53,7 @@ export interface TravelRequest {
   title: string;
   startDate: string;
   endDate: string;
+  price: number;
   destinations: Destination[];
   activities: Activity[];
   accommodations: Accommodation[];

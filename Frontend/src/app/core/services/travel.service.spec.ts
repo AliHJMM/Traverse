@@ -15,6 +15,8 @@ describe('TravelService', () => {
     startDate: '2026-08-01',
     endDate: '2026-08-10',
     durationDays: 10,
+    price: 500,
+    managerId: 10,
     destinations: [{ city: 'Paris', country: 'France', arrivalDate: null, departureDate: null }],
     activities: [],
     accommodations: [],
@@ -37,6 +39,16 @@ describe('TravelService', () => {
     httpMock.expectOne({ method: 'GET', url: '/api/travels' }).flush([travel]);
   });
 
+  it('findMine GETs /api/travels/mine', () => {
+    service.findMine().subscribe((travels) => expect(travels).toEqual([travel]));
+    httpMock.expectOne({ method: 'GET', url: '/api/travels/mine' }).flush([travel]);
+  });
+
+  it('recommendations GETs /api/travels/recommendations', () => {
+    service.recommendations().subscribe((travels) => expect(travels).toEqual([travel]));
+    httpMock.expectOne({ method: 'GET', url: '/api/travels/recommendations' }).flush([travel]);
+  });
+
   it('findById GETs /api/travels/:id', () => {
     service.findById(1).subscribe((result) => expect(result).toEqual(travel));
     httpMock.expectOne({ method: 'GET', url: '/api/travels/1' }).flush(travel);
@@ -45,6 +57,7 @@ describe('TravelService', () => {
   it('create POSTs to /api/travels', () => {
     const request: TravelRequest = {
       title: 'Europe Trip',
+      price: 500,
       startDate: '2026-08-01',
       endDate: '2026-08-10',
       destinations: travel.destinations,
@@ -62,6 +75,7 @@ describe('TravelService', () => {
   it('update PUTs to /api/travels/:id', () => {
     const request: TravelRequest = {
       title: 'Europe Trip Extended',
+      price: 600,
       startDate: '2026-08-01',
       endDate: '2026-08-12',
       destinations: travel.destinations,

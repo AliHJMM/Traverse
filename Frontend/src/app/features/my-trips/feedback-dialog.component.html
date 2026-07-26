@@ -1,0 +1,30 @@
+<h2 mat-dialog-title>Rate “{{ data.travelTitle }}”</h2>
+
+<mat-dialog-content>
+  <form [formGroup]="form" class="flex flex-col gap-2 pt-1">
+    <mat-form-field appearance="outline">
+      <mat-label>Rating</mat-label>
+      <mat-select formControlName="rating">
+        @for (r of ratings; track r) {
+          <mat-option [value]="r">{{ r }} / 5</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Comment (optional)</mat-label>
+      <textarea matInput formControlName="comment" rows="4" maxlength="2000"></textarea>
+    </mat-form-field>
+
+    @if (errorMessage()) {
+      <p class="text-sm text-red-600">{{ errorMessage() }}</p>
+    }
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()" [disabled]="saving()">Cancel</button>
+  <button mat-flat-button color="primary" (click)="submit()" [disabled]="saving()">
+    {{ saving() ? 'Submitting…' : 'Submit' }}
+  </button>
+</mat-dialog-actions>

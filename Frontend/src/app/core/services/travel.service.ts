@@ -15,6 +15,16 @@ export class TravelService {
     return this.http.get<Travel[]>(this.baseUrl);
   }
 
+  /** Travels owned by the current manager. */
+  findMine(): Observable<Travel[]> {
+    return this.http.get<Travel[]>(`${this.baseUrl}/mine`);
+  }
+
+  /** Neo4j personalized recommendations for the current traveler. */
+  recommendations(): Observable<Travel[]> {
+    return this.http.get<Travel[]>(`${this.baseUrl}/recommendations`);
+  }
+
   findById(id: number): Observable<Travel> {
     return this.http.get<Travel>(`${this.baseUrl}/${id}`);
   }

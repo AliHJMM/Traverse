@@ -48,7 +48,7 @@ export class LoginComponent {
     this.authService.login(email, password).subscribe({
       next: () => {
         this.loading.set(false);
-        this.router.navigateByUrl('/users');
+        this.router.navigateByUrl('/dashboard');
       },
       error: () => {
         this.loading.set(false);
