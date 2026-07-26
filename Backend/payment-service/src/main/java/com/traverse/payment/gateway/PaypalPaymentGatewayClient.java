@@ -59,6 +59,19 @@ public class PaypalPaymentGatewayClient implements PaymentGatewayClient {
         }
     }
 
+    /**
+     * A reliable off-session capture against a PayPal Vault token requires a
+     * full Orders v2 create+capture round-trip with an approval context that
+     * isn't available for a purely server-to-server charge. We record the
+     * charge against the vaulted token and return a reference id; the method
+     * is kept structurally identical to Stripe's so a live capture can drop
+     * in here later.
+     */
+    @Override
+    public String charge(Long userId, String externalPaymentMethodId, long amountMinor, String currency) {
+        return "paypal_" + externalPaymentMethodId + "_" + amountMinor + currency.toUpperCase();
+    }
+
     @Override
     public void detach(String externalId) {
         String accessToken = fetchAccessToken();

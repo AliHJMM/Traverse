@@ -1,0 +1,38 @@
+<h2 mat-dialog-title>Pay for “{{ data.travelTitle }}”</h2>
+
+<mat-dialog-content class="!min-w-[320px]">
+  <p class="mb-3 text-sm text-slate-500">
+    Amount due: <span class="font-semibold text-slate-900">{{ data.amount | currency: 'USD' }}</span>
+  </p>
+
+  @if (loading()) {
+    <div class="flex justify-center py-8"><mat-spinner diameter="32"></mat-spinner></div>
+  } @else if (methods().length === 0) {
+    <div class="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
+      You have no saved payment methods.
+      <a routerLink="/payments" mat-dialog-close class="mt-2 block font-medium text-blue-600 hover:underline">
+        Add a payment method
+      </a>
+    </div>
+  } @else {
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Payment method</mat-label>
+      <mat-select [formControl]="methodControl">
+        @for (m of methods(); track m.id) {
+          <mat-option [value]="m.id">{{ label(m) }}{{ m.isDefault ? ' (default)' : '' }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  }
+
+  @if (errorMessage()) {
+    <p class="text-sm text-red-600">{{ errorMessage() }}</p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()" [disabled]="paying()">Cancel</button>
+  <button mat-flat-button color="primary" (click)="pay()" [disabled]="paying() || methods().length === 0">
+    {{ paying() ? 'Processing…' : 'Pay ' + (data.amount | currency: 'USD') }}
+  </button>
+</mat-dialog-actions>

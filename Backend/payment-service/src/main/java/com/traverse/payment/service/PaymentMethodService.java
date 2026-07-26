@@ -25,15 +25,15 @@ public class PaymentMethodService {
         this.gatewayClients = gatewayClients;
     }
 
-    public PaymentMethod create(CreatePaymentMethodRequest request) {
-        AttachedPaymentMethod attached = gatewayFor(request.provider()).attach(request.userId(), request.token());
+    public PaymentMethod create(Long userId, CreatePaymentMethodRequest request) {
+        AttachedPaymentMethod attached = gatewayFor(request.provider()).attach(userId, request.token());
 
         if (request.setDefault()) {
-            clearExistingDefault(request.userId());
+            clearExistingDefault(userId);
         }
 
         PaymentMethod paymentMethod = new PaymentMethod(
-                request.userId(), request.provider(), attached.externalId(), attached.brand(), attached.last4(),
+                userId, request.provider(), attached.externalId(), attached.brand(), attached.last4(),
                 attached.expiryMonth(), attached.expiryYear(), attached.payerEmail(), request.setDefault());
         return paymentMethodRepository.save(paymentMethod);
     }

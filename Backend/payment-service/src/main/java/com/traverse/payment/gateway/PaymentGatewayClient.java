@@ -15,4 +15,13 @@ public interface PaymentGatewayClient {
     AttachedPaymentMethod attach(Long userId, String token);
 
     void detach(String externalId);
+
+    /**
+     * Charge a previously-saved (tokenized) payment method off-session and
+     * return the provider's charge/reference id.
+     *
+     * @param amountMinor amount in the currency's minor unit (e.g. cents)
+     * @throws PaymentGatewayException if the provider declines or errors
+     */
+    String charge(Long userId, String externalPaymentMethodId, long amountMinor, String currency);
 }

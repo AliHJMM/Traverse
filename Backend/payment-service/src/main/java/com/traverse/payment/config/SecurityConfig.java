@@ -26,7 +26,10 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
-                        .requestMatchers("/api/payments/**").hasRole("ADMIN")
+                        // Any authenticated user manages their OWN payment methods and
+                        // pays for their OWN bookings; ownership (and admin oversight)
+                        // is enforced per-request in the controllers/service.
+                        .requestMatchers("/api/payments/**").authenticated()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(
                         (request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))

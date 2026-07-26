@@ -31,7 +31,7 @@ describe('MyTripsComponent', () => {
     createdAt: '2026-01-01T00:00:00Z',
   };
 
-  function flushInit(reviewed = false): void {
+  function flushInit(reviewed = false, paid = false): void {
     httpMock.expectOne('/api/travels/subscriptions/mine').flush([
       { id: 9, travelId: 1, travelerId: 2, status: 'SUBSCRIBED', createdAt: '2026-01-01T00:00:00Z' },
     ]);
@@ -39,6 +39,9 @@ describe('MyTripsComponent', () => {
     httpMock
       .expectOne('/api/travels/feedback/mine')
       .flush(reviewed ? [{ id: 3, travelId: 1, travelerId: 2, rating: 5, comment: 'x', createdAt: '' }] : []);
+    httpMock
+      .expectOne('/api/payments/charges/mine')
+      .flush(paid ? [{ id: 5, travelId: 1, status: 'SUCCEEDED', amount: 500 }] : []);
   }
 
   beforeEach(async () => {
@@ -96,7 +99,24 @@ describe('MyTripsComponent', () => {
     httpMock.expectOne('/api/travels/subscriptions/mine').flush([]);
     httpMock.expectOne('/api/travels').flush([travel]);
     httpMock.expectOne('/api/travels/feedback/mine').flush([]);
+    httpMock.expectOne('/api/payments/charges/mine').flush([]);
 
     expect(component.trips().length).toBe(0);
+  });
+
+  it('marks a trip paid when a succeeded payment exists', () => {
+    flushInit(false, true);
+    expect(component.trips()[0].paid).toBeTrue();
+  });
+
+  it('reloads after a successful payment', () => {
+    flushInit();
+    expect(component.trips()[0].paid).toBeFalse();
+    dialogSpy.open.and.returnValue({ afterClosed: () => of({ id: 5 }) } as ReturnType<MatDialog['open']>);
+
+    component.pay(travel);
+    flushInit(false, true);
+
+    expect(component.trips()[0].paid).toBeTrue();
   });
 });

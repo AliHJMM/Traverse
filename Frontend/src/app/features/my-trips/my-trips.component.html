@@ -23,6 +23,16 @@
             </p>
           </div>
           <div class="flex items-center gap-2">
+            @if (trip.paid) {
+              <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                <mat-icon class="!h-4 !w-4 !text-base">paid</mat-icon> Paid
+              </span>
+            } @else {
+              <button mat-flat-button color="primary" (click)="pay(trip.travel)">
+                <mat-icon>credit_card</mat-icon>
+                Pay {{ trip.travel.price | currency: 'USD' : 'symbol' : '1.0-0' }}
+              </button>
+            }
             @if (trip.reviewed) {
               <span class="inline-flex items-center gap-1 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
                 <mat-icon class="!h-4 !w-4 !text-base">check</mat-icon> Reviewed

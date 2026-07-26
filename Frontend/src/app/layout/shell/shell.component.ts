@@ -24,7 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/travels', label: 'Travels', icon: 'flight', roles: ['ADMIN', 'TRAVEL_MANAGER'] },
   { path: '/users', label: 'Users', icon: 'group', roles: ['ADMIN'] },
   { path: '/reports', label: 'Reports', icon: 'flag', roles: ['ADMIN', 'TRAVEL_MANAGER', 'TRAVELER'] },
-  { path: '/payments', label: 'Payments', icon: 'payment', roles: ['ADMIN'] },
+  { path: '/payments', label: 'Payments', icon: 'payment', roles: ['ADMIN', 'TRAVEL_MANAGER', 'TRAVELER'] },
 ];
 
 const ROLE_LABELS: Record<Role, string> = {

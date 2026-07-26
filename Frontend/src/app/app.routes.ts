@@ -55,7 +55,6 @@ export const routes: Routes = [
       {
         path: 'payments',
         canActivate: [roleGuard],
-        data: { roles: ['ADMIN'] },
         loadComponent: () =>
           import('./features/payments/payments-list.component').then((m) => m.PaymentsListComponent),
       },
