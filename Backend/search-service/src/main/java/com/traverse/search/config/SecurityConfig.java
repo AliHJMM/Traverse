@@ -29,9 +29,13 @@ public class SecurityConfig {
                         // Search + autocomplete are open to any authenticated role
                         // (travelers, managers, admins all search travels).
                         .requestMatchers("/api/search/travels", "/api/search/autocomplete").authenticated()
-                        // Internal indexing endpoints -- called service-to-service by
-                        // travel-service forwarding the caller's Bearer token.
-                        .requestMatchers("/api/search/index/**").authenticated()
+                        // Internal indexing endpoints -- only ever invoked
+                        // service-to-service by travel-service while forwarding a
+                        // manager/admin's cookie (travel writes are themselves
+                        // manager/admin-only). Gating to those roles stops an
+                        // ordinary traveler from tampering with the search index
+                        // directly through the gateway.
+                        .requestMatchers("/api/search/index/**").hasAnyRole("ADMIN", "TRAVEL_MANAGER")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(
                         (request, response, authException) -> response.sendError(HttpServletResponse.SC_UNAUTHORIZED)))

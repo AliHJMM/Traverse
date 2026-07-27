@@ -29,12 +29,14 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentMethodRepository paymentMethodRepository;
+    private final TravelPricingClient travelPricingClient;
     private final List<PaymentGatewayClient> gatewayClients;
 
     public PaymentService(PaymentRepository paymentRepository, PaymentMethodRepository paymentMethodRepository,
-                          List<PaymentGatewayClient> gatewayClients) {
+                          TravelPricingClient travelPricingClient, List<PaymentGatewayClient> gatewayClients) {
         this.paymentRepository = paymentRepository;
         this.paymentMethodRepository = paymentMethodRepository;
+        this.travelPricingClient = travelPricingClient;
         this.gatewayClients = gatewayClients;
     }
 
@@ -46,7 +48,9 @@ public class PaymentService {
             throw new PaymentMethodNotFoundException(request.paymentMethodId());
         }
 
-        long amountMinor = request.amount().multiply(BigDecimal.valueOf(100)).longValueExact();
+        // Authoritative amount comes from travel-service, never the client.
+        BigDecimal amount = travelPricingClient.priceOf(request.travelId());
+        long amountMinor = amount.multiply(BigDecimal.valueOf(100)).longValueExact();
         PaymentProvider provider = method.getProvider();
 
         // A declined charge is recorded (FAILED) rather than thrown, so the
@@ -56,10 +60,10 @@ public class PaymentService {
         try {
             String chargeId = gatewayFor(provider).charge(userId, method.getExternalId(), amountMinor, CURRENCY);
             return paymentRepository.save(new Payment(userId, request.travelId(), method.getId(), provider,
-                    request.amount(), CURRENCY, PaymentStatus.SUCCEEDED, chargeId));
+                    amount, CURRENCY, PaymentStatus.SUCCEEDED, chargeId));
         } catch (PaymentGatewayException ex) {
             return paymentRepository.save(new Payment(userId, request.travelId(), method.getId(), provider,
-                    request.amount(), CURRENCY, PaymentStatus.FAILED, null));
+                    amount, CURRENCY, PaymentStatus.FAILED, null));
         }
     }
 

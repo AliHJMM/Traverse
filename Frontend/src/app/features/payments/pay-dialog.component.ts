@@ -77,7 +77,7 @@ export class PayDialogComponent {
     this.paying.set(true);
     this.errorMessage.set(null);
     this.paymentService
-      .charge({ travelId: this.data.travelId, paymentMethodId: this.methodControl.value!, amount: this.data.amount })
+      .charge({ travelId: this.data.travelId, paymentMethodId: this.methodControl.value! })
       .subscribe({
         next: (payment) => {
           this.paying.set(false);
