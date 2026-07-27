@@ -129,7 +129,7 @@ public interface DestinationNodeRepository extends Neo4jRepository<DestinationNo
             OPTIONAL MATCH (me)-[f:RATED]->(mine)
             WITH me, feature, coalesce(f.score, 3) AS weight
             MATCH (rec:Travel)-[:HAS_DESTINATION|HAS_ACTIVITY|HAS_ACCOMMODATION|HAS_TRANSPORT]->(feature)
-            WHERE rec <> mine AND NOT EXISTS { (me)-[:PARTICIPATED_IN]->(rec) }
+            WHERE NOT EXISTS { (me)-[:PARTICIPATED_IN]->(rec) }
             WITH rec, sum(weight) AS score, count(DISTINCT feature) AS sharedFeatures
             RETURN rec.travelId AS travelId
             ORDER BY score DESC, sharedFeatures DESC
