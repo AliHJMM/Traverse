@@ -33,10 +33,18 @@ public class StatsController {
         return statsService.managerStats(principal.id());
     }
 
-    /** Public manager snapshot -- a traveler can inspect a manager before joining. */
+    /**
+     * Public manager snapshot -- a traveler can inspect a manager (trips,
+     * ratings, reports) before joining. A manager's revenue is private
+     * business data, so {@code totalIncome} is stripped here; it stays visible
+     * only on the manager's own dashboard ({@code /manager/me}) and the admin
+     * overview.
+     */
     @GetMapping("/manager/{managerId}")
     public ManagerStatsResponse managerStats(@PathVariable Long managerId) {
-        return statsService.managerStats(managerId);
+        ManagerStatsResponse s = statsService.managerStats(managerId);
+        return new ManagerStatsResponse(s.managerId(), s.tripsCount(), s.activeTravelersCount(),
+                null, s.averageRating(), s.feedbackCount(), s.reportCount());
     }
 
     /** The current Traveler's personal dashboard. */
