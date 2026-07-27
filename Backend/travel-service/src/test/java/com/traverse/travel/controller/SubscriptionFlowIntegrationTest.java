@@ -83,6 +83,16 @@ class SubscriptionFlowIntegrationTest {
         // unsubscribe again -> 409 (not subscribed)
         mockMvc.perform(delete("/api/travels/" + id + "/subscribe").cookie(traveler))
                 .andExpect(status().isConflict());
+
+        // active subscriptions is now empty, but the full history keeps the
+        // cancelled participation (traveler profile / travel history).
+        mockMvc.perform(get("/api/travels/subscriptions/mine").cookie(traveler))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/api/travels/subscriptions/history").cookie(traveler))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].status").value("CANCELLED"));
     }
 
     @Test

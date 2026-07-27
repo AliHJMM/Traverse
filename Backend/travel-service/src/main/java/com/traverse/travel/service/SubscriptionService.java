@@ -88,6 +88,14 @@ public class SubscriptionService {
                 .toList();
     }
 
+    /** Full subscription history (all statuses) for the traveler's profile. */
+    @Transactional(readOnly = true)
+    public List<SubscriptionResponse> subscriptionHistory(Long travelerId) {
+        return subscriptionRepository.findByTravelerIdOrderByCreatedAtDesc(travelerId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     private void assertBeforeCutoff(Travel travel) {
         if (LocalDate.now().isAfter(travel.getStartDate().minusDays(CUTOFF_DAYS))) {
             throw new SubscriptionCutoffException();

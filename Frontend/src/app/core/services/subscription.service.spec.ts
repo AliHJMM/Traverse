@@ -42,4 +42,9 @@ describe('SubscriptionService', () => {
     service.mine().subscribe();
     httpMock.expectOne({ method: 'GET', url: '/api/travels/subscriptions/mine' }).flush([]);
   });
+
+  it('history GETs the full participation history', () => {
+    service.history().subscribe();
+    httpMock.expectOne({ method: 'GET', url: '/api/travels/subscriptions/history' }).flush([]);
+  });
 });

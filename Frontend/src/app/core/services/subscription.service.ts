@@ -28,8 +28,13 @@ export class SubscriptionService {
     return this.http.delete<void>(`${this.baseUrl}/${travelId}/subscribers/${travelerId}`);
   }
 
-  /** Current traveler's own subscriptions. */
+  /** Current traveler's own active subscriptions. */
   mine(): Observable<Subscription[]> {
     return this.http.get<Subscription[]>(`${this.baseUrl}/subscriptions/mine`);
+  }
+
+  /** Current traveler's full participation history (all statuses). */
+  history(): Observable<Subscription[]> {
+    return this.http.get<Subscription[]>(`${this.baseUrl}/subscriptions/history`);
   }
 }
