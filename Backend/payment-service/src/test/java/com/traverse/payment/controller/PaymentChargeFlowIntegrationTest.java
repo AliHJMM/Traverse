@@ -9,6 +9,7 @@ import com.traverse.payment.gateway.AttachedPaymentMethod;
 import com.traverse.payment.gateway.PaymentGatewayException;
 import com.traverse.payment.gateway.PaypalPaymentGatewayClient;
 import com.traverse.payment.gateway.StripePaymentGatewayClient;
+import com.traverse.payment.service.TravelPricingClient;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.Cookie;
@@ -47,6 +48,8 @@ class PaymentChargeFlowIntegrationTest {
     private StripePaymentGatewayClient stripeClient;
     @MockBean
     private PaypalPaymentGatewayClient paypalClient;
+    @MockBean
+    private TravelPricingClient travelPricingClient;
 
     private long createMethod(Cookie owner, long ownerId, String token) throws Exception {
         when(stripeClient.attach(ownerId, token))
@@ -65,11 +68,12 @@ class PaymentChargeFlowIntegrationTest {
 
         Cookie traveler = tokenCookie(2L, "t@example.com", Role.TRAVELER);
         long methodId = createMethod(traveler, 2L, "pm_ok");
+        // Authoritative price comes from travel-service, not the request.
+        when(travelPricingClient.priceOf(100L)).thenReturn(new BigDecimal("500.00"));
         when(stripeClient.charge(2L, "pm_ok", 50000L, "USD")).thenReturn("pi_123");
 
         mockMvc.perform(post("/api/payments/charges").cookie(traveler).contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                new ChargeRequest(100L, methodId, new BigDecimal("500.00")))))
+                        .content(objectMapper.writeValueAsString(new ChargeRequest(100L, methodId))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.travelId").value(100))
@@ -92,8 +96,7 @@ class PaymentChargeFlowIntegrationTest {
         long methodId = createMethod(owner, 2L, "pm_owned");
 
         mockMvc.perform(post("/api/payments/charges").cookie(attacker).contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                new ChargeRequest(100L, methodId, new BigDecimal("500.00")))))
+                        .content(objectMapper.writeValueAsString(new ChargeRequest(100L, methodId))))
                 .andExpect(status().isNotFound());
     }
 
@@ -104,12 +107,12 @@ class PaymentChargeFlowIntegrationTest {
 
         Cookie traveler = tokenCookie(2L, "t@example.com", Role.TRAVELER);
         long methodId = createMethod(traveler, 2L, "pm_decline");
+        when(travelPricingClient.priceOf(100L)).thenReturn(new BigDecimal("500.00"));
         when(stripeClient.charge(2L, "pm_decline", 50000L, "USD"))
                 .thenThrow(new PaymentGatewayException("card declined"));
 
         mockMvc.perform(post("/api/payments/charges").cookie(traveler).contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                new ChargeRequest(100L, methodId, new BigDecimal("500.00")))))
+                        .content(objectMapper.writeValueAsString(new ChargeRequest(100L, methodId))))
                 .andExpect(status().isPaymentRequired())
                 .andExpect(jsonPath("$.status").value("FAILED"));
 

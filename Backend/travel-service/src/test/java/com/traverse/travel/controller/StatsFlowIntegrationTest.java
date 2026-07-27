@@ -93,10 +93,12 @@ class StatsFlowIntegrationTest {
                 .andExpect(jsonPath("$.monthlyIncome.length()").value(6))
                 .andExpect(jsonPath("$.monthlyIncome[5].income").value(500.00));
 
-        // Public manager snapshot is visible to a traveler
+        // Public manager snapshot is visible to a traveler, but the manager's
+        // revenue is stripped (private business data).
         mockMvc.perform(get("/api/travels/stats/manager/10").cookie(traveler))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.tripsCount").value(1));
+                .andExpect(jsonPath("$.tripsCount").value(1))
+                .andExpect(jsonPath("$.totalIncome").value(org.hamcrest.Matchers.nullValue()));
     }
 
     @Test

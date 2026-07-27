@@ -21,10 +21,10 @@ export interface CreatePaymentMethodRequest {
   setDefault: boolean;
 }
 
+/** Amount is resolved server-side from the travel's price, never sent by the client. */
 export interface ChargeRequest {
   travelId: number;
   paymentMethodId: number;
-  amount: number;
 }
 
 export interface Payment {

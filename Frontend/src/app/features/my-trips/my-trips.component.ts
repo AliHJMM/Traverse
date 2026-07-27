@@ -23,6 +23,14 @@ interface TripView {
   paid: boolean;
 }
 
+interface HistoryEntry {
+  travelId: number;
+  title: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: string;
+}
+
 @Component({
   selector: 'app-my-trips',
   imports: [
@@ -45,6 +53,7 @@ export class MyTripsComponent {
 
   readonly loading = signal(true);
   readonly trips = signal<TripView[]>([]);
+  readonly history = signal<HistoryEntry[]>([]);
   readonly isEmpty = computed(() => !this.loading() && this.trips().length === 0);
 
   constructor() {
@@ -55,14 +64,27 @@ export class MyTripsComponent {
     this.loading.set(true);
     forkJoin({
       subscriptions: this.subscriptionService.mine(),
+      history: this.subscriptionService.history(),
       travels: this.travelService.findAll(),
       feedback: this.feedbackService.mine(),
       payments: this.paymentService.history(),
     }).subscribe({
-      next: ({ subscriptions, travels, feedback, payments }) => {
+      next: ({ subscriptions, history, travels, feedback, payments }) => {
         const byId = new Map(travels.map((t) => [t.id, t]));
         const reviewedIds = new Set(feedback.map((f) => f.travelId));
         const paidIds = new Set(payments.filter((p) => p.status === 'SUCCEEDED').map((p) => p.travelId));
+        this.history.set(
+          history.map((s) => {
+            const t = byId.get(s.travelId);
+            return {
+              travelId: s.travelId,
+              title: t?.title ?? `Trip #${s.travelId}`,
+              startDate: t?.startDate ?? null,
+              endDate: t?.endDate ?? null,
+              status: s.status,
+            };
+          }),
+        );
         const active = subscriptions
           .filter((s) => s.status === 'SUBSCRIBED')
           .map((s) => byId.get(s.travelId))

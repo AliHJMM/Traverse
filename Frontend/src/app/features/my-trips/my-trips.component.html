@@ -48,4 +48,27 @@
       }
     </div>
   }
+
+  @if (history().length) {
+    <h2 class="mb-3 mt-10 text-lg font-semibold text-slate-900">Trip history</h2>
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <ul class="divide-y divide-slate-100">
+        @for (h of history(); track h.travelId + '-' + h.status) {
+          <li class="flex items-center justify-between px-4 py-3">
+            <div>
+              <div class="text-sm font-medium text-slate-800">{{ h.title }}</div>
+              <div class="text-xs text-slate-400">
+                {{ h.startDate | date: 'mediumDate' }} – {{ h.endDate | date: 'mediumDate' }}
+              </div>
+            </div>
+            @if (h.status === 'SUBSCRIBED') {
+              <span class="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">Active</span>
+            } @else {
+              <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">Cancelled</span>
+            }
+          </li>
+        }
+      </ul>
+    </div>
+  }
 </div>

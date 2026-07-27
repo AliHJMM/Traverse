@@ -35,6 +35,9 @@ describe('MyTripsComponent', () => {
     httpMock.expectOne('/api/travels/subscriptions/mine').flush([
       { id: 9, travelId: 1, travelerId: 2, status: 'SUBSCRIBED', createdAt: '2026-01-01T00:00:00Z' },
     ]);
+    httpMock.expectOne('/api/travels/subscriptions/history').flush([
+      { id: 9, travelId: 1, travelerId: 2, status: 'SUBSCRIBED', createdAt: '2026-01-01T00:00:00Z' },
+    ]);
     httpMock.expectOne('/api/travels').flush([travel]);
     httpMock
       .expectOne('/api/travels/feedback/mine')
@@ -97,11 +100,15 @@ describe('MyTripsComponent', () => {
     component.unsubscribe(travel);
     httpMock.expectOne({ method: 'DELETE', url: '/api/travels/1/subscribe' }).flush(null);
     httpMock.expectOne('/api/travels/subscriptions/mine').flush([]);
+    httpMock.expectOne('/api/travels/subscriptions/history').flush([
+      { id: 9, travelId: 1, travelerId: 2, status: 'CANCELLED', createdAt: '2026-01-01T00:00:00Z' },
+    ]);
     httpMock.expectOne('/api/travels').flush([travel]);
     httpMock.expectOne('/api/travels/feedback/mine').flush([]);
     httpMock.expectOne('/api/payments/charges/mine').flush([]);
 
     expect(component.trips().length).toBe(0);
+    expect(component.history()[0].status).toBe('CANCELLED');
   });
 
   it('marks a trip paid when a succeeded payment exists', () => {

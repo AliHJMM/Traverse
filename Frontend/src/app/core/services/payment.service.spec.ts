@@ -57,8 +57,8 @@ describe('PaymentService', () => {
     httpMock.expectOne({ method: 'DELETE', url: '/api/payments/1' }).flush(null);
   });
 
-  it('charge POSTs to /api/payments/charges', () => {
-    const request = { travelId: 100, paymentMethodId: 1, amount: 500 };
+  it('charge POSTs to /api/payments/charges (no client amount)', () => {
+    const request = { travelId: 100, paymentMethodId: 1 };
     service.charge(request).subscribe();
     const req = httpMock.expectOne({ method: 'POST', url: '/api/payments/charges' });
     expect(req.request.body).toEqual(request);

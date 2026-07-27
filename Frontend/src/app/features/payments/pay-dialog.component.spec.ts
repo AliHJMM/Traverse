@@ -60,7 +60,7 @@ describe('PayDialogComponent', () => {
 
     component.pay();
     const req = httpMock.expectOne('/api/payments/charges');
-    expect(req.request.body).toEqual({ travelId: 1, paymentMethodId: 7, amount: 500 });
+    expect(req.request.body).toEqual({ travelId: 1, paymentMethodId: 7 });
     req.flush({ id: 9, travelId: 1, status: 'SUCCEEDED' });
 
     expect(dialogRef.close).toHaveBeenCalled();

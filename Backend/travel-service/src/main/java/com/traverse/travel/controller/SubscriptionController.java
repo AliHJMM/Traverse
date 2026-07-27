@@ -64,6 +64,12 @@ public class SubscriptionController {
         return subscriptionService.mySubscriptions(principal.id());
     }
 
+    /** The current traveler's full participation history (all statuses). */
+    @GetMapping("/subscriptions/history")
+    public List<SubscriptionResponse> myHistory(@AuthenticationPrincipal AuthenticatedUser principal) {
+        return subscriptionService.subscriptionHistory(principal.id());
+    }
+
     private boolean isAdmin(AuthenticatedUser principal) {
         return principal != null && principal.role() == Role.ADMIN;
     }
